@@ -1,0 +1,15 @@
+{% extends "dashboard_layout.html" %}
+{% block title %}Dashboard{% endblock %}
+
+{% block main_content %}
+<h1 class="mb-4">Dashboard</h1>
+{% if show_briefing %}
+  {% include "agent/includes/briefing_cards.html" %}
+  {% include "agent/includes/chat_widget.html" %}
+{% else %}
+  <div class="card border-0 shadow-sm p-4">
+    <h5 class="fw-bold">Selamat Datang di Teknusa ERP</h5>
+    <p class="text-muted mb-0">Gunakan menu di samping kiri untuk mengakses Leads, Lean, Ledger, Post Media, Kanban, dan Gantt Chart.</p>
+  </div>
+{% endif %}
+{% endblock %}

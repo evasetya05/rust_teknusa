@@ -1,0 +1,17 @@
+{% extends "dashboard_layout.html" %}
+{% block title %}Komentar Task{% endblock %}
+{% block main_content %}
+<div class="d-flex justify-content-between align-items-center pb-2 mb-3 border-bottom">
+  <h1 class="h4 mb-0">Komentar Task #{{ task_id }}</h1>
+  <a href="/kanban/task/{{ task_id }}/edit/" class="btn btn-outline-secondary btn-sm">← Kembali ke Task</a>
+</div>
+<div class="card border-0 shadow-sm p-4">
+  <form method="post" class="mb-4">
+    <textarea name="comment" class="form-control mb-2" rows="3" placeholder="Tulis komentar..." required></textarea>
+    <button type="submit" class="btn btn-primary btn-sm">Kirim Komentar</button>
+  </form>
+  {% for c in comments %}
+  <div class="p-2 mb-2 bg-light rounded border small"><strong>{{ c.author_name }}</strong> ({{ c.created_at }})<p class="mb-0 mt-1">{{ c.comment }}</p></div>
+  {% endfor %}
+</div>
+{% endblock %}

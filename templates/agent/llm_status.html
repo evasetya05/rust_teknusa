@@ -1,0 +1,204 @@
+{% extends "dashboard_layout.html" %}
+{% block title %}Agent AI &amp; LLM{% endblock %}
+
+{% block main_content %}
+<nav aria-label="breadcrumb">
+  <ol class="breadcrumb mb-2">
+    <li class="breadcrumb-item"><a href="/dashboard/">Dashboard</a></li>
+    <li class="breadcrumb-item"><a href="/agent/briefing/">Daily Briefing</a></li>
+    <li class="breadcrumb-item active" aria-current="page">Pengaturan &amp; Uji LLM</li>
+  </ol>
+</nav>
+
+<div class="d-flex flex-wrap justify-content-between align-items-center mb-4 gap-2">
+  <div>
+    <h1 class="h3 mb-1"><i class="fas fa-robot text-primary me-2"></i>Pengaturan Agent AI &amp; LLM</h1>
+    <p class="text-muted small mb-0">Pilih provider kecerdasan buatan untuk daily briefing dan chat asisten laporan.</p>
+  </div>
+  <a href="/agent/briefing/" class="btn btn-outline-primary btn-sm px-3"><i class="fas fa-newspaper me-1"></i>Buka Daily Briefing</a>
+</div>
+
+<div class="card border-0 shadow-sm mb-4" style="border-radius: 14px; background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%); color: #fff;">
+  <div class="card-body p-4 d-flex flex-wrap align-items-center justify-content-between gap-3">
+    <div class="d-flex align-items-center gap-3">
+      <div class="rounded-circle d-flex align-items-center justify-content-center flex-shrink-0" style="width: 58px; height: 58px; background: rgba(255,255,255,0.12);">
+        {% if mode == 'gemini' %}<i class="fab fa-google text-warning fa-2x"></i>
+        {% elif mode == 'local' %}<i class="fas fa-server text-info fa-2x"></i>
+        {% elif mode == 'auto' %}<i class="fas fa-bolt text-warning fa-2x"></i>
+        {% else %}<i class="fas fa-power-off text-muted fa-2x"></i>{% endif %}
+      </div>
+      <div>
+        <div class="small text-white-50 text-uppercase fw-bold">Provider Aktif Saat Ini</div>
+        <h2 class="h4 mb-1 fw-bold text-white">
+          {% if mode == 'gemini' %}Google Gemini API <span class="badge bg-primary ms-2">{{ gemini.model }}</span>
+          {% elif mode == 'local' %}Ollama / Llama <span class="badge bg-info text-dark ms-2">{{ local.model }}</span>
+          {% elif mode == 'auto' %}Otomatis <span class="badge bg-warning text-dark ms-2">Ollama &rarr; Gemini</span>
+          {% else %}Agent AI Nonaktif <span class="badge bg-secondary ms-2">Template Statis</span>{% endif %}
+        </h2>
+        <div class="d-flex flex-wrap align-items-center gap-2 small">
+          {% if mode == 'gemini' %}
+            {% if gemini_key_set %}<span class="badge bg-success">API Key Siap ({{ gemini_key_source }}: {{ gemini_key_hint }})</span>
+            {% else %}<span class="badge bg-danger">API Key Belum Diisi</span>{% endif %}
+          {% elif mode == 'local' %}
+            <span class="badge bg-secondary">URL: {{ local.url }}</span>
+          {% endif %}
+          {% if overridden %}<span class="badge bg-warning text-dark">Manual Override</span>
+          {% else %}<span class="badge bg-light text-dark border">Konfigurasi Environment Server</span>{% endif %}
+        </div>
+      </div>
+    </div>
+    <button type="button" class="btn btn-success btn-sm px-3 fw-bold" id="quick-test-active-btn"><i class="fas fa-satellite-dish me-1"></i>Uji Provider Aktif Sekarang</button>
+  </div>
+</div>
+
+<form method="post" action="/agent/llm/settings/" id="llm-settings-form">
+  <div class="row g-4 mb-4">
+    <div class="col-lg-6">
+      <div class="card h-100 shadow-sm border-2 {% if mode == 'gemini' %}border-primary{% else %}border-light{% endif %}" style="border-radius: 12px;">
+        <div class="card-header bg-white border-bottom-0 pt-4 px-4 pb-2 d-flex justify-content-between align-items-center">
+          <div><h5 class="fw-bold mb-0"><i class="fab fa-google text-primary me-2"></i>Google Gemini API</h5></div>
+          {% if mode == 'gemini' %}<span class="badge bg-primary px-3 py-2">SEDANG AKTIF</span>{% endif %}
+        </div>
+        <div class="card-body px-4 pb-4 pt-2">
+          <div class="mb-3">
+            <label class="form-label small fw-bold" for="id_gemini_api_key">Gemini API Key</label>
+            <div class="input-group input-group-sm mb-1">
+              <input type="password" class="form-control" id="id_gemini_api_key" name="gemini_api_key" autocomplete="new-password" placeholder="{% if gemini_key_source == 'ui' %}Biarkan kosong untuk memakai key tersimpan{% else %}Tempel API key (AIzaSy...){% endif %}">
+              <button class="btn btn-outline-secondary" type="button" id="toggle-key-visibility"><i class="fas fa-eye"></i></button>
+            </div>
+            {% if gemini_key_source == 'ui' %}
+            <div class="form-check mt-1 mb-2">
+              <input class="form-check-input" type="checkbox" id="id_clear_gemini_key" name="clear_gemini_key" value="1">
+              <label class="form-check-label small text-muted" for="id_clear_gemini_key">Hapus key tersimpan</label>
+            </div>
+            {% endif %}
+          </div>
+          <div class="row g-2 mb-3">
+            <div class="col-sm-8">
+              <label class="form-label small fw-bold" for="id_gemini_model">Model Gemini</label>
+              <input class="form-control form-control-sm" id="id_gemini_model" name="gemini_model" value="{{ gemini.model | default(value='gemini-1.5-flash') }}" required>
+            </div>
+            <div class="col-sm-4">
+              <label class="form-label small fw-bold" for="id_gemini_timeout">Timeout (detik)</label>
+              <input type="number" min="1" max="300" class="form-control form-control-sm" id="id_gemini_timeout" name="gemini_timeout" value="{{ gemini.timeout | default(value=30) }}" required>
+            </div>
+          </div>
+          <div class="d-flex flex-wrap gap-2 pt-2 border-top">
+            <button type="submit" name="mode" value="gemini" class="btn btn-primary btn-sm px-3 fw-bold">Simpan &amp; Aktifkan Gemini</button>
+            <button type="button" class="btn btn-outline-success btn-sm px-3" id="test-gemini-direct-btn">Uji Koneksi Gemini</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-lg-6">
+      <div class="card h-100 shadow-sm border-2 {% if mode == 'local' %}border-info{% else %}border-light{% endif %}" style="border-radius: 12px;">
+        <div class="card-header bg-white border-bottom-0 pt-4 px-4 pb-2 d-flex justify-content-between align-items-center">
+          <div><h5 class="fw-bold mb-0"><i class="fas fa-server text-info me-2"></i>Ollama / Llama</h5></div>
+          {% if mode == 'local' %}<span class="badge bg-info text-dark px-3 py-2">SEDANG AKTIF</span>{% endif %}
+        </div>
+        <div class="card-body px-4 pb-4 pt-2">
+          <div class="mb-3">
+            <label class="form-label small fw-bold" for="id_local_url">URL Server Ollama</label>
+            <input class="form-control form-control-sm" id="id_local_url" name="local_url" value="{{ local.url | default(value='http://ollama:11434') }}">
+          </div>
+          <div class="row g-2 mb-3">
+            <div class="col-sm-8">
+              <label class="form-label small fw-bold" for="id_local_model">Model Ollama</label>
+              <input class="form-control form-control-sm" id="id_local_model" name="local_model" value="{{ local.model | default(value='llama3.2:1b') }}">
+            </div>
+            <div class="col-sm-4">
+              <label class="form-label small fw-bold" for="id_local_timeout">Timeout (detik)</label>
+              <input type="number" min="1" max="300" class="form-control form-control-sm" id="id_local_timeout" name="local_timeout" value="{{ local.timeout | default(value=20) }}">
+            </div>
+          </div>
+          <div class="d-flex flex-wrap gap-2 pt-2 border-top">
+            <button type="submit" name="mode" value="local" class="btn btn-outline-info text-dark btn-sm px-3 fw-bold">Simpan &amp; Aktifkan Ollama</button>
+            <button type="button" class="btn btn-outline-secondary btn-sm px-3" id="test-local-direct-btn">Uji Koneksi Ollama</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card shadow-sm border-0 mb-4" style="border-radius: 12px;">
+    <div class="card-body px-4 py-3 d-flex flex-wrap justify-content-between align-items-center gap-3">
+      <div class="d-flex align-items-center gap-2">
+        <span class="text-muted small fw-bold">Opsi Lainnya:</span>
+        <button type="submit" name="mode" value="auto" class="btn btn-outline-warning btn-sm">Mode Auto (Ollama lalu Gemini)</button>
+        <button type="submit" name="mode" value="off" class="btn btn-outline-secondary btn-sm">Nonaktifkan AI (Template Statis)</button>
+      </div>
+      <button type="submit" name="action" value="reset" class="btn btn-link text-danger btn-sm text-decoration-none" formnovalidate>Reset ke environment</button>
+    </div>
+  </div>
+</form>
+
+<div class="row g-4 mb-4">
+  <div class="col-lg-6">
+    <div class="card shadow-sm border-0 h-100" style="border-radius: 12px;">
+      <div class="card-header bg-white border-bottom-0 pt-4 px-4 pb-2"><h5 class="fw-bold mb-1"><i class="fas fa-terminal text-primary me-2"></i>Konsol Hasil Tes Koneksi</h5></div>
+      <div class="card-body px-4 pb-4 pt-2"><div id="llm-test-result"><div class="alert alert-light border py-3 mb-0 text-muted small">Klik tombol uji provider di atas untuk menjalankan tes.</div></div></div>
+    </div>
+  </div>
+  <div class="col-lg-6">
+    <div class="card shadow-sm border-0 h-100" style="border-radius: 12px;">
+      <div class="card-header bg-white border-bottom-0 pt-4 px-4 pb-2"><h5 class="fw-bold mb-1"><i class="fas fa-vial text-info me-2"></i>Test Suite Anti-Halusinasi</h5></div>
+      <div class="card-body px-4 pb-4 pt-2">
+        <button id="suite-test-btn" type="button" class="btn btn-info text-white btn-sm px-3 fw-bold"><i class="fas fa-play me-1"></i>Jalankan Test Suite Sekarang</button>
+        <div id="suite-test-result" class="mt-3"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+{% include "agent/includes/chat_widget.html" %}
+{% endblock %}
+
+{% block page_js %}
+<script>
+(function () {
+  function esc(s) { var d = document.createElement("div"); d.textContent = s == null ? "" : s; return d.innerHTML; }
+  var toggleBtn = document.getElementById("toggle-key-visibility"), keyInput = document.getElementById("id_gemini_api_key");
+  if (toggleBtn && keyInput) {
+    toggleBtn.addEventListener("click", function () {
+      var isPass = keyInput.type === "password";
+      keyInput.type = isPass ? "text" : "password";
+    });
+  }
+  var outResult = document.getElementById("llm-test-result");
+  function runTest(params, msg) {
+    outResult.innerHTML = '<div class="alert alert-info py-2 mb-0">' + esc(msg) + '</div>';
+    fetch("/agent/llm/test/", { method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" }, body: params, credentials: "same-origin" })
+      .then(r => r.json())
+      .then(data => {
+        if (data.error && !data.results) { outResult.innerHTML = '<div class="alert alert-warning mb-0">' + esc(data.error) + '</div>'; return; }
+        var html = data.results.map(r => r.ok
+          ? '<div class="py-1"><strong class="text-success">&#10004; ' + esc(r.provider) + '</strong> (' + esc(r.model) + ') — ' + r.seconds + 's<br><small><code>' + esc(r.response) + '</code></small></div>'
+          : '<div class="py-1"><strong class="text-danger">&#10008; ' + esc(r.provider) + '</strong> (' + esc(r.model) + ') — ' + r.seconds + 's<br><div class="small text-danger">' + esc(r.error) + '</div></div>'
+        ).join("<hr class='my-2'>");
+        outResult.innerHTML = '<div class="alert alert-' + (data.ok ? "success" : "danger") + ' mb-0">' + html + '</div>';
+      });
+  }
+  document.getElementById("quick-test-active-btn").addEventListener("click", function () { runTest(new URLSearchParams({}), "Menguji provider aktif..."); });
+  document.getElementById("test-gemini-direct-btn").addEventListener("click", function () {
+    var p = new URLSearchParams({ provider: "gemini", gemini_model: document.getElementById("id_gemini_model").value });
+    if (keyInput.value.trim()) p.append("gemini_api_key", keyInput.value.trim());
+    runTest(p, "Menguji Google Gemini API...");
+  });
+  document.getElementById("test-local-direct-btn").addEventListener("click", function () {
+    var p = new URLSearchParams({ provider: "local", local_url: document.getElementById("id_local_url").value, local_model: document.getElementById("id_local_model").value });
+    runTest(p, "Menguji Ollama lokal...");
+  });
+  var btnSuite = document.getElementById("suite-test-btn"), outSuite = document.getElementById("suite-test-result");
+  btnSuite.addEventListener("click", function () {
+    btnSuite.disabled = true;
+    fetch("/agent/llm/test-suite/", { method: "POST", credentials: "same-origin" })
+      .then(r => r.json())
+      .then(data => {
+        outSuite.innerHTML = '<div class="alert alert-' + (data.ok ? "success" : "danger") + ' p-3 mb-0"><div class="mb-2 fw-bold">Tests: ' + data.tests_run + ' | Failures: ' + data.failures + '</div><pre class="bg-dark text-white p-3 rounded-2 small mb-0" style="max-height:240px;overflow:auto;">' + esc(data.output) + '</pre></div>';
+      })
+      .finally(() => { btnSuite.disabled = false; });
+  });
+})();
+</script>
+{% endblock %}

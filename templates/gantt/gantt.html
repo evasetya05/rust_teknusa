@@ -1,0 +1,612 @@
+{% extends "base.html" %}
+{% block title %}Gantt Chart{% endblock %}
+
+{% block extra_css %}
+<style>
+.g-wrap { background:#fff; border:1px solid #dee2e6; border-radius:.5rem; overflow:hidden; }
+.g-scroll { overflow:auto; max-height:70vh; position:relative; }
+.g-grid { display:grid; grid-template-columns:300px 1fr; min-width:max-content; }
+.g-left { position:sticky; left:0; z-index:6; background:#fff; border-right:1px solid #dee2e6; }
+.g-head { position:sticky; top:0; z-index:7; background:#f8f9fa; }
+.g-left.g-head { z-index:8; }
+.g-row { height:36px; display:flex; align-items:center; padding:0 .6rem; border-bottom:1px solid #eef0f2; font-size:.82rem; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.g-row.group { background:#f1f5f9; font-weight:700; font-size:.78rem; text-transform:uppercase; letter-spacing:.04em; color:#475569; }
+.g-row.entity-banner { background:#0f172a; color:#38bdf8; font-weight:700; font-size:0.75rem; letter-spacing:0.06em; text-transform:uppercase; }
+.g-row a { color:#212529; text-decoration:none; overflow:hidden; text-overflow:ellipsis; }
+.g-row a:hover { color:#0d6efd; }
+.g-row .row-act { opacity:0; transition:opacity .15s ease; }
+.g-row:hover .row-act { opacity:1; }
+.g-months, .g-days { display:flex; }
+.g-months div { font-size:.75rem; font-weight:700; padding:.2rem .4rem; border-right:1px solid #dee2e6; border-bottom:1px solid #dee2e6; white-space:nowrap; overflow:hidden; }
+.g-days div { font-size:.68rem; text-align:center; color:#6c757d; border-right:1px solid #eef0f2; padding:.15rem 0; }
+.g-days div.we, .g-cell.we { background:#f8f9fb; }
+.g-body { position:relative; }
+.g-line { position:absolute; top:0; bottom:0; width:2px; background:#ef4444; z-index:2; pointer-events:none; }
+.g-track { height:36px; border-bottom:1px solid #eef0f2; position:relative; }
+.g-track.group { background:#f1f5f9; }
+.g-track.entity-banner { background:#0f172a; border-bottom:1px solid #1e293b; }
+.g-bg { position:absolute; inset:0; display:flex; pointer-events:none; }
+.g-cell { border-right:1px solid #f1f3f5; flex:none; }
+.g-bar { position:absolute; top:6px; height:24px; border-radius:5px; color:#fff; font-size:.72rem; line-height:24px; padding:0 .5rem; cursor:grab; overflow:hidden; white-space:nowrap; box-shadow:0 1px 3px rgba(0,0,0,.2); user-select:none; z-index:3; transition:box-shadow .15s; }
+.g-bar:hover { box-shadow:0 2px 8px rgba(0,0,0,.35); }
+.g-bar.dragging { cursor:grabbing; opacity:.85; z-index:10; }
+.g-bar.done { opacity:.55; }
+.g-bar.overdue { outline:2px solid #991b1b; }
+.g-bar.nodate { border:2px dashed #f59e0b; opacity:.85; }
+.g-bar.linking { cursor:crosshair; }
+.g-bar.pick { outline:3px solid #16a34a !important; box-shadow:0 0 12px rgba(22,163,74,.6); }
+.g-prog { position:absolute; left:0; top:0; bottom:0; background:rgba(0,0,0,.25); pointer-events:none; }
+.g-bar span { position:relative; }
+.g-h { position:absolute; top:0; bottom:0; width:8px; cursor:ew-resize; z-index:2; }
+.g-h.l { left:0; } .g-h.r { right:0; }
+.g-conn { position:absolute; right:-7px; top:5px; width:14px; height:14px; border-radius:50%; background:#2563eb; border:2px solid #fff; cursor:crosshair; z-index:4; display:none; }
+.g-bar:hover .g-conn { display:block; }
+.g-base { position:absolute; top:29px; height:4px; border-radius:2px; background:#475569; z-index:2; }
+.g-ms { position:absolute; top:8px; width:20px; height:20px; transform:rotate(45deg) scale(.75); background:#8b5cf6; border:2px solid #5b21b6; cursor:grab; z-index:4; }
+.g-ms.done { background:#22c55e; border-color:#15803d; }
+.g-mslbl { position:absolute; top:10px; font-size:.68rem; font-weight:600; color:#5b21b6; white-space:nowrap; z-index:4; pointer-events:none; }
+.g-svg { position:absolute; left:0; top:0; z-index:5; pointer-events:none; overflow:visible; }
+.g-svg .hit { stroke:transparent; stroke-width:14; fill:none; pointer-events:stroke; cursor:pointer; }
+.g-svg .arrow { stroke:#475569; stroke-width:1.8; fill:none; }
+.g-svg .arrow.bad { stroke:#dc2626; stroke-dasharray:4 3; }
+.g-leg i { display:inline-block; width:10px; height:10px; border-radius:2px; margin:0 .25rem 0 .75rem; }
+#g-drag-tip { position:fixed; display:none; z-index:9999; background:rgba(15,23,42,0.92); color:#fff; padding:4px 10px; border-radius:6px; font-size:0.75rem; font-weight:600; pointer-events:none; box-shadow:0 4px 12px rgba(0,0,0,0.25); }
+#link-banner { display:none; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div id="g-drag-tip"></div>
+
+<div class="container-fluid mt-3">
+  <div id="link-banner" class="alert alert-info py-2 px-3 mb-3 d-flex justify-content-between align-items-center shadow-sm">
+    <div>
+      <i class="fas fa-link me-2 text-primary"></i>
+      <strong id="link-source-name">Mode Hubungkan Panah:</strong>
+      <span class="ms-1 small">Klik task tujuan di timeline untuk membuat panah relasi.</span>
+    </div>
+    <button type="button" class="btn btn-sm btn-outline-danger py-0 px-2" id="btn-cancel-link">Batal</button>
+  </div>
+
+  <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+    <h4 class="mb-0"><i class="fas fa-stream text-primary me-2"></i>Gantt Chart</h4>
+
+    <form method="get" id="gantt-filter-form" class="d-flex flex-wrap gap-2 align-items-center">
+      <div class="input-group input-group-sm" style="width: auto;">
+        <span class="input-group-text bg-light fw-bold text-secondary"><i class="fas fa-building text-primary me-1"></i>PT</span>
+        <select name="entity" id="g-entity" class="form-select form-select-sm" style="min-width: 175px;" onchange="onEntityChange(this.value)">
+          <option value="all" {% if selected_entity_id == 'all' %}selected{% endif %}>🌐 Semua Perusahaan</option>
+          {% for ent in all_entities %}
+          <option value="{{ ent.id }}" {% if selected_entity_id == ent.id %}selected{% endif %}>{{ ent.name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <div class="input-group input-group-sm" style="width: auto;">
+        <span class="input-group-text bg-light fw-bold text-secondary"><i class="fas fa-columns text-info me-1"></i>Board</span>
+        <select name="board" id="g-board" class="form-select form-select-sm" style="min-width: 150px;" onchange="this.form.submit()">
+          <option value="">Semua Board</option>
+          {% for b in boards %}
+          <option value="{{ b.id }}" {% if selected_board and selected_board.id == b.id %}selected{% endif %}>
+            {{ b.name }}{% if is_all_entities and b.entity_name %} ({{ b.entity_name }}){% endif %}
+          </option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <div class="form-check form-switch mb-0 ms-1">
+        <input class="form-check-input" type="checkbox" name="done" value="1" id="gdone" {% if show_done %}checked{% endif %} onchange="this.form.submit()">
+        <label class="form-check-label small" for="gdone">Selesai</label>
+      </div>
+
+      <div class="form-check form-switch mb-0 ms-1">
+        <input class="form-check-input" type="checkbox" name="nodate" value="1" id="gnodate" {% if show_nodate %}checked{% endif %} onchange="this.form.submit()">
+        <label class="form-check-label small" for="gnodate">Draft Tanggal</label>
+      </div>
+
+      <div class="btn-group btn-group-sm">
+        <button type="button" class="btn btn-outline-secondary" data-zoom="14">Hari</button>
+        <button type="button" class="btn btn-outline-secondary" data-zoom="6">Minggu</button>
+        <button type="button" class="btn btn-outline-secondary" data-zoom="2.5">Bulan</button>
+      </div>
+
+      <button type="button" class="btn btn-sm btn-outline-primary" id="g-today">Hari Ini</button>
+      <button type="button" class="btn btn-sm btn-outline-success" id="g-link-modal-btn"><i class="fas fa-link me-1"></i>Buat Arrow</button>
+      <button type="button" class="btn btn-sm btn-outline-secondary" id="g-msbtn"><i class="fas fa-gem me-1"></i>Milestone</button>
+
+      <div class="btn-group btn-group-sm">
+        <button type="button" class="btn btn-outline-dark dropdown-toggle" id="g-blbtn">
+          <i class="fas fa-flag-checkered me-1"></i>Baseline
+        </button>
+        <ul class="dropdown-menu" id="g-blmenu">
+          <li><a class="dropdown-item" href="#" data-bl="set">Simpan baseline (task baru saja)</a></li>
+          <li><a class="dropdown-item" href="#" data-bl="overwrite">Reset baseline ke tanggal saat ini</a></li>
+          <li><hr class="dropdown-divider"></li>
+          <li><a class="dropdown-item text-danger" href="#" data-bl="clear">Hapus baseline</a></li>
+        </ul>
+      </div>
+    </form>
+  </div>
+
+  <div id="g-msform" class="card card-body py-2 mb-3 bg-light border shadow-sm" style="display: none;">
+    <div class="row g-2 align-items-end">
+      <div class="col-md-3">
+        <label class="form-label small mb-0 fw-bold">Board Tujuan</label>
+        <select id="ms-board" class="form-select form-select-sm" onchange="onMsBoardChange(this.value)">
+          {% for b in boards %}
+          <option value="{{ b.id }}" {% if selected_board and selected_board.id == b.id %}selected{% endif %}>
+            {{ b.name }}{% if b.entity_name %} - {{ b.entity_name }}{% endif %}
+          </option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-md-3">
+        <label class="form-label small mb-0 fw-bold">Pilih Task Spesifik (Opsional)</label>
+        <select id="ms-task" class="form-select form-select-sm"><option value="">-- Umum (Header Board) --</option></select>
+      </div>
+      <div class="col-md-3">
+        <label class="form-label small mb-0 fw-bold">Judul Milestone</label>
+        <input id="ms-title" class="form-control form-control-sm" maxlength="200" placeholder="Contoh: Go-live">
+      </div>
+      <div class="col-md-2">
+        <label class="form-label small mb-0 fw-bold">Target Tanggal</label>
+        <input id="ms-date" type="date" class="form-control form-control-sm" value="{{ today }}">
+      </div>
+      <div class="col-md-1 d-flex gap-1">
+        <button type="button" id="ms-save" class="btn btn-sm btn-primary w-100">Tambah</button>
+        <button type="button" id="ms-cancel" class="btn btn-sm btn-outline-secondary"><i class="fas fa-times"></i></button>
+      </div>
+    </div>
+  </div>
+
+  <div class="small text-muted g-leg mb-2 d-flex flex-wrap align-items-center">
+    <span class="me-2">
+      {% if current_entity_obj %}
+        <span class="badge bg-primary text-white"><i class="fas fa-building me-1"></i>{{ current_entity_obj.name }}</span>
+      {% else %}
+        <span class="badge bg-dark text-white"><i class="fas fa-globe me-1"></i>Semua Perusahaan</span>
+      {% endif %}
+    </span>
+    <span><strong>{{ task_count }}</strong> task, <strong>{{ milestone_count }}</strong> milestone.</span>
+    <span class="ms-3 d-none d-md-inline">Prioritas:</span>
+    <i style="background:#94a3b8"></i>Low
+    <i style="background:#3b82f6"></i>Medium
+    <i style="background:#f59e0b"></i>High
+    <i style="background:#ef4444"></i>Urgent
+    <span class="ms-3"><span style="border-bottom: 2px solid #ef4444; display: inline-block; width: 14px; margin-right: 4px;"></span> Garis merah: Hari ini</span>
+    {% if no_date_count > 0 %}
+      <span class="badge bg-warning text-dark ms-2">{{ no_date_count }} task tanpa tanggal disembunyikan</span>
+    {% endif %}
+  </div>
+
+  <div class="g-wrap">
+    {% if task_count > 0 or milestone_count > 0 %}
+      <div class="g-scroll" id="g-scroll"><div class="g-grid" id="g-grid"></div></div>
+    {% else %}
+      <div class="text-center text-muted py-5 px-3">
+        <i class="fas fa-stream fa-2x mb-2 text-secondary"></i>
+        <div class="fw-bold">Tidak ada task dengan rentang tanggal atau milestone pada filter ini.</div>
+      </div>
+    {% endif %}
+  </div>
+</div>
+
+<!-- Quick Modal -->
+<div class="modal fade" id="taskQuickModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content border-0 shadow">
+      <div class="modal-header bg-light py-2">
+        <h6 class="modal-title fw-bold"><i class="fas fa-tasks text-primary me-2"></i>Opsi Task Gantt</h6>
+        <button type="button" class="btn-close btn-sm" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body py-3">
+        <h5 id="modal-task-title" class="fw-bold text-dark mb-1"></h5>
+        <div class="small text-muted mb-3">
+          <span id="modal-task-entity" class="badge bg-secondary me-1"></span>
+          <span id="modal-task-board" class="badge bg-light text-dark border me-1"></span>
+          <span id="modal-task-column" class="badge bg-info text-dark"></span>
+        </div>
+        <div class="p-2 bg-light rounded border mb-3">
+          <label class="form-label small fw-bold mb-1 text-primary">Pindahkan Jadwal / Tanggal Task</label>
+          <div class="row g-2 align-items-end">
+            <div class="col-6"><label class="small text-muted">Mulai</label><input type="date" id="modal-task-start" class="form-control form-control-sm"></div>
+            <div class="col-6"><label class="small text-muted">Jatuh Tempo</label><input type="date" id="modal-task-end" class="form-control form-control-sm"></div>
+            <div class="col-12 mt-2"><button type="button" id="btn-save-task-dates" class="btn btn-sm btn-primary w-100">Simpan Jadwal</button></div>
+          </div>
+        </div>
+        <div class="p-2 bg-light rounded border mb-3">
+          <label class="form-label small fw-bold mb-1 text-success">Buat Panah (Arrow) ke Task Penerus</label>
+          <div class="input-group input-group-sm">
+            <select id="modal-dep-successor" class="form-select form-select-sm"><option value="">-- Pilih Task Tujuan --</option></select>
+            <button type="button" id="btn-create-dep" class="btn btn-success btn-sm">Hubungkan</button>
+          </div>
+        </div>
+        <div class="p-2 bg-light rounded border mb-2">
+          <label class="form-label small fw-bold mb-1" style="color:#7c3aed;">Pasang Milestone pada Task Ini</label>
+          <div class="row g-1">
+            <div class="col-7"><input type="text" id="modal-ms-title" class="form-control form-control-sm" placeholder="Judul milestone..."></div>
+            <div class="col-5"><input type="date" id="modal-ms-date" class="form-control form-control-sm"></div>
+            <div class="col-12 mt-1"><button type="button" id="btn-create-task-ms" class="btn btn-sm btn-outline-secondary w-100">Tambah Milestone</button></div>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer py-2 bg-light d-flex justify-content-between">
+        <a id="modal-task-url" href="#" class="btn btn-outline-primary btn-sm" target="_blank">Buka Form Task Lengkap</a>
+        <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Tutup</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Arrow Modal -->
+<div class="modal fade" id="arrowModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content border-0 shadow">
+      <div class="modal-header bg-light py-2">
+        <h6 class="modal-title fw-bold">Buat Panah (Arrow) Antar Task</h6>
+        <button type="button" class="btn-close btn-sm" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body py-3">
+        <div class="mb-3"><label class="form-label small fw-bold">1. Task Asal (Predecessor)</label><select id="arrow-from" class="form-select form-select-sm"></select></div>
+        <div class="mb-3"><label class="form-label small fw-bold">2. Task Tujuan (Successor)</label><select id="arrow-to" class="form-select form-select-sm"></select></div>
+      </div>
+      <div class="modal-footer py-2 bg-light">
+        <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Batal</button>
+        <button type="button" id="btn-save-arrow" class="btn btn-success btn-sm">Buat Panah</button>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script id="g-data" type="application/json">{{ data_json | json_encode() | safe }}</script>
+<script>
+function onEntityChange(val) {
+  var b = document.getElementById('g-board');
+  if (b) b.value = '';
+  document.getElementById('gantt-filter-form').submit();
+}
+
+var DATA = JSON.parse(document.getElementById('g-data').textContent || '{}');
+var rows = DATA.rows || [], deps = DATA.deps || [], miles = DATA.milestones || [], isAllEntities = !!DATA.is_all_entities;
+
+function onMsBoardChange(boardId) {
+  var taskSel = document.getElementById('ms-task');
+  if (!taskSel) return;
+  taskSel.innerHTML = '<option value="">-- Umum (Header Board) --</option>';
+  rows.forEach(function (r) {
+    if (!boardId || r.board_id == boardId) {
+      var opt = document.createElement('option');
+      opt.value = r.id;
+      opt.textContent = r.title + (isAllEntities ? ' (' + r.board + ')' : '');
+      taskSel.appendChild(opt);
+    }
+  });
+}
+
+(function () {
+  var URLS = {
+    dates: "/gantt/task/0/dates/",
+    depAdd: "/gantt/dependency/add/",
+    depDel: "/gantt/dependency/0/delete/",
+    msAdd: "/gantt/milestone/add/",
+    msToggle: "/gantt/milestone/0/toggle/",
+    msMove: "/gantt/milestone/0/move/",
+    msDel: "/gantt/milestone/0/delete/",
+    blSet: "/gantt/baseline/set/",
+    blClear: "/gantt/baseline/clear/"
+  };
+  function u(key, id) { return URLS[key].replace('/0/', '/' + id + '/'); }
+  function post(url, obj) {
+    var fd = new FormData();
+    Object.keys(obj || {}).forEach(function (k) { fd.append(k, obj[k]); });
+    return fetch(url, { method: 'POST', body: fd }).then(function (r) { return r.json(); });
+  }
+  function fail(j) { alert((j && j.error) || 'Gagal memproses request.'); }
+  function reloadOrFail(j) { if (j.ok) location.reload(); else fail(j); }
+
+  var DAY = 86400000, TODAY = "{{ today }}", RH = 36;
+  var dw = parseFloat(localStorage.getItem('gantt-dw') || '14');
+  var linkMode = false, linkSourceId = null, lbl;
+
+  function d(s) {
+    if (!s) return d(TODAY);
+    var p = String(s).split('T')[0].split('-');
+    return Date.UTC(+p[0], +p[1] - 1, +p[2]);
+  }
+  function iso(t) { return new Date(t).toISOString().slice(0, 10); }
+  function esc(s) { var x = document.createElement('div'); x.textContent = s || ''; return x.innerHTML; }
+  function rowById(id) { return rows.filter(function (r) { return r.id == id; })[0]; }
+
+  var initialBoard = document.getElementById('ms-board') ? document.getElementById('ms-board').value : '';
+  onMsBoardChange(initialBoard);
+
+  var msForm = document.getElementById('g-msform');
+  var msBtn = document.getElementById('g-msbtn');
+  if (msBtn && msForm) msBtn.addEventListener('click', function () { msForm.style.display = (msForm.style.display === 'block') ? 'none' : 'block'; });
+  var msCancel = document.getElementById('ms-cancel');
+  if (msCancel && msForm) msCancel.addEventListener('click', function () { msForm.style.display = 'none'; });
+  var msSave = document.getElementById('ms-save');
+  if (msSave) {
+    msSave.addEventListener('click', function () {
+      var title = document.getElementById('ms-title').value.trim();
+      if (!title) { alert('Silakan isi judul milestone.'); return; }
+      post(URLS.msAdd, {
+        board: document.getElementById('ms-board').value,
+        task: document.getElementById('ms-task').value,
+        title: title,
+        date: document.getElementById('ms-date').value
+      }).then(reloadOrFail);
+    });
+  }
+
+  var blMenu = document.getElementById('g-blmenu'), blBtn = document.getElementById('g-blbtn');
+  if (blBtn && blMenu) {
+    blBtn.addEventListener('click', function (e) { e.stopPropagation(); blMenu.classList.toggle('show'); });
+    document.addEventListener('click', function () { blMenu.classList.remove('show'); });
+  }
+  var boardSel = document.getElementById('g-board') ? document.getElementById('g-board').value : '';
+  document.querySelectorAll('[data-bl]').forEach(function (a) {
+    a.addEventListener('click', function (e) {
+      e.preventDefault();
+      var mode = a.dataset.bl;
+      if (mode === 'clear') {
+        if (confirm('Hapus baseline?')) post(URLS.blClear, { board: boardSel }).then(reloadOrFail);
+      } else {
+        post(URLS.blSet, { board: boardSel, overwrite: mode === 'overwrite' ? '1' : '0' })
+          .then(function (j) { if (j.ok) { alert(j.count + ' baseline disimpan.'); location.reload(); } else fail(j); });
+      }
+    });
+  });
+
+  var arrowModalEl = document.getElementById('arrowModal');
+  var arrowModal = arrowModalEl ? new bootstrap.Modal(arrowModalEl) : null;
+  function openArrowModal(prefillFromId) {
+    var selFrom = document.getElementById('arrow-from'), selTo = document.getElementById('arrow-to');
+    var taskList = (DATA.all_tasks && DATA.all_tasks.length) ? DATA.all_tasks : rows;
+    var html = '<option value="">-- Pilih Task --</option>';
+    taskList.forEach(function (r) { html += '<option value="' + r.id + '">' + esc(r.title) + ' [' + esc(r.board) + ']</option>'; });
+    selFrom.innerHTML = html; selTo.innerHTML = html;
+    if (prefillFromId) selFrom.value = String(prefillFromId);
+    if (arrowModal) arrowModal.show();
+  }
+  var arrowBtn = document.getElementById('g-link-modal-btn');
+  if (arrowBtn) arrowBtn.addEventListener('click', function () { openArrowModal(); });
+  var saveArrowBtn = document.getElementById('btn-save-arrow');
+  if (saveArrowBtn) {
+    saveArrowBtn.addEventListener('click', function () {
+      var f = document.getElementById('arrow-from').value, t = document.getElementById('arrow-to').value;
+      if (!f || !t) { alert('Pilih task asal dan tujuan.'); return; }
+      post(URLS.depAdd, { from: f, to: t }).then(reloadOrFail);
+    });
+  }
+
+  var btnCancelLink = document.getElementById('btn-cancel-link');
+  if (btnCancelLink) {
+    btnCancelLink.addEventListener('click', function () {
+      linkMode = false; linkSourceId = null;
+      document.getElementById('link-banner').style.display = 'none';
+      render();
+    });
+  }
+
+  var taskModalEl = document.getElementById('taskQuickModal');
+  var taskModal = taskModalEl ? new bootstrap.Modal(taskModalEl) : null;
+  var currentActiveTaskId = null;
+  function openTaskQuickModal(task) {
+    currentActiveTaskId = task.id;
+    document.getElementById('modal-task-title').textContent = task.title;
+    document.getElementById('modal-task-entity').textContent = task.entity;
+    document.getElementById('modal-task-board').textContent = task.board;
+    document.getElementById('modal-task-column').textContent = task.column;
+    document.getElementById('modal-task-start').value = task.start;
+    document.getElementById('modal-task-end').value = task.end;
+    document.getElementById('modal-task-url').href = task.url;
+    var succSel = document.getElementById('modal-dep-successor');
+    var taskList = (DATA.all_tasks && DATA.all_tasks.length) ? DATA.all_tasks : rows;
+    var h = '<option value="">-- Pilih Task Tujuan --</option>';
+    taskList.forEach(function (r) { if (String(r.id) !== String(task.id)) h += '<option value="' + r.id + '">' + esc(r.title) + '</option>'; });
+    succSel.innerHTML = h;
+    document.getElementById('modal-ms-title').value = 'Milestone: ' + task.title;
+    document.getElementById('modal-ms-date').value = task.end || task.start || TODAY;
+    if (taskModal) taskModal.show();
+  }
+
+  document.getElementById('btn-save-task-dates').addEventListener('click', function () {
+    if (!currentActiveTaskId) return;
+    var s = document.getElementById('modal-task-start').value, en = document.getElementById('modal-task-end').value;
+    post(u('dates', currentActiveTaskId), { start: s, end: en }).then(function (j) {
+      if (j.ok) {
+        if (taskModal) taskModal.hide();
+        var r = rowById(currentActiveTaskId);
+        if (r) { r.start = s; r.end = en; r.is_nodate = false; }
+        render();
+      } else fail(j);
+    });
+  });
+  document.getElementById('btn-create-dep').addEventListener('click', function () {
+    var toId = document.getElementById('modal-dep-successor').value;
+    if (currentActiveTaskId && toId) post(URLS.depAdd, { from: currentActiveTaskId, to: toId }).then(reloadOrFail);
+  });
+  document.getElementById('btn-create-task-ms').addEventListener('click', function () {
+    if (!currentActiveTaskId) return;
+    var r = rowById(currentActiveTaskId);
+    post(URLS.msAdd, {
+      task: currentActiveTaskId,
+      board: r ? r.board_id : '',
+      title: document.getElementById('modal-ms-title').value.trim(),
+      date: document.getElementById('modal-ms-date').value
+    }).then(reloadOrFail);
+  });
+
+  var grid = document.getElementById('g-grid');
+  if (!grid) return;
+
+  var all = [d(TODAY)];
+  rows.forEach(function (r) {
+    if (r.start) all.push(d(r.start));
+    if (r.end) all.push(d(r.end));
+    if (r.baseline) { all.push(d(r.baseline.start)); all.push(d(r.baseline.end)); }
+  });
+  miles.forEach(function (m) { if (m.date) all.push(d(m.date)); });
+  var min = Math.min.apply(null, all) - 7 * DAY, max = Math.max.apply(null, all) + 14 * DAY;
+  var days = Math.max(7, Math.round((max - min) / DAY) + 1);
+
+  var boardMilestones = {}, taskMilestones = {};
+  miles.forEach(function (m) {
+    if (m.task_id) { (taskMilestones[m.task_id] = taskMilestones[m.task_id] || []).push(m); }
+    else { (boardMilestones[m.board_id] = boardMilestones[m.board_id] || []).push(m); }
+  });
+
+  var groups = [], gi = {};
+  function grp(id, name, entity) {
+    if (!(id in gi)) { gi[id] = groups.length; groups.push({ id: id, name: name || "Board", entity: entity || "Umum", items: [] }); }
+    return groups[gi[id]];
+  }
+  rows.forEach(function (r) { grp(r.board_id, r.board, r.entity).items.push(r); });
+
+  function render() {
+    localStorage.setItem('gantt-dw', dw);
+    var W = days * dw, left = '', track = '', i, months = '', daysRow = '', cur = null, span = 0, bg = '';
+    for (i = 0; i < days; i++) {
+      var t = new Date(min + i * DAY), key = t.getUTCFullYear() + '-' + t.getUTCMonth(), wd = t.getUTCDay();
+      if (key !== cur) {
+        if (cur !== null) months += '<div style="width:' + span * dw + 'px">' + lbl + '</div>';
+        cur = key; span = 0;
+        lbl = t.toLocaleString('id-ID', { month: 'short', year: 'numeric', timeZone: 'UTC' });
+      }
+      span++;
+      var we = (wd === 0 || wd === 6) ? 'we' : '';
+      daysRow += '<div class="' + we + '" style="width:' + dw + 'px">' + (dw >= 12 ? t.getUTCDate() : '') + '</div>';
+      bg += '<div class="g-cell ' + we + '" style="width:' + dw + 'px"></div>';
+    }
+    months += '<div style="width:' + span * dw + 'px">' + lbl + '</div>';
+    bg = '<div class="g-bg">' + bg + '</div>';
+
+    var pos = {}, rowIdx = 0, lastEntity = null;
+    groups.forEach(function (g) {
+      if (isAllEntities && g.entity !== lastEntity) {
+        lastEntity = g.entity;
+        left += '<div class="g-row entity-banner">' + esc(g.entity) + '</div>';
+        track += '<div class="g-track entity-banner">' + bg + '</div>';
+        rowIdx++;
+      }
+      left += '<div class="g-row group">' + esc(g.name) + '</div>';
+      var msB = '';
+      (boardMilestones[g.id] || []).forEach(function (m) {
+        var mx = (d(m.date) - min) / DAY * dw + dw / 2 - 10;
+        msB += '<div class="g-ms' + (m.done ? ' done' : '') + '" data-ms="' + m.id + '" style="left:' + mx + 'px"></div><div class="g-mslbl" style="left:' + (mx + 22) + 'px">' + esc(m.title) + '</div>';
+      });
+      track += '<div class="g-track group">' + bg + msB + '</div>';
+      rowIdx++;
+
+      g.items.forEach(function (r) {
+        left += '<div class="g-row ps-3 d-flex justify-content-between align-items-center"><a href="javascript:void(0)" class="task-name-btn text-truncate" data-id="' + r.id + '">' + esc(r.title) + '</a></div>';
+        var x = (d(r.start) - min) / DAY * dw, w = Math.max(dw, ((d(r.end) - d(r.start)) / DAY + 1) * dw);
+        pos[r.id] = { x: x, w: w, y: rowIdx * RH + 16 };
+        var base = '';
+        if (r.baseline) {
+          var bx = (d(r.baseline.start) - min) / DAY * dw, bw = ((d(r.baseline.end) - d(r.baseline.start)) / DAY + 1) * dw;
+          base = '<div class="g-base" style="left:' + bx + 'px;width:' + bw + 'px"></div>';
+        }
+        var msT = '';
+        (taskMilestones[r.id] || []).forEach(function (m) {
+          var mx = (d(m.date) - min) / DAY * dw + dw / 2 - 10;
+          msT += '<div class="g-ms' + (m.done ? ' done' : '') + '" data-ms="' + m.id + '" style="left:' + mx + 'px"></div><div class="g-mslbl" style="left:' + (mx + 22) + 'px">' + esc(m.title) + '</div>';
+        });
+        track += '<div class="g-track">' + bg + base + msT +
+          '<div class="g-bar' + (r.is_nodate ? ' nodate' : '') + (r.completed ? ' done' : '') + (r.overdue ? ' overdue' : '') + (linkMode ? ' linking' : '') + (linkSourceId == r.id ? ' pick' : '') + '" data-id="' + r.id + '" style="left:' + x + 'px;width:' + w + 'px;background:' + r.color + '">' +
+          '<div class="g-prog" style="width:' + r.progress + '%"></div><div class="g-h l"></div><span>' + esc(r.title) + '</span><div class="g-h r"></div><div class="g-conn"></div></div></div>';
+        rowIdx++;
+      });
+    });
+
+    var paths = '';
+    deps.forEach(function (dp) {
+      var a = pos[dp.from], b = pos[dp.to];
+      if (!a || !b) return;
+      var x1 = a.x + a.w, y1 = a.y, x2 = b.x, y2 = b.y;
+      var p = (x2 >= x1 + 14) ? ('M' + x1 + ',' + y1 + ' H' + (x1 + 7) + ' V' + y2 + ' H' + (x2 - 1))
+        : ('M' + x1 + ',' + y1 + ' H' + (x1 + 7) + ' V' + (y2 > y1 ? y1 + RH / 2 : y1 - RH / 2) + ' H' + (x2 - 8) + ' V' + y2 + ' H' + (x2 - 1));
+      paths += '<path class="arrow" d="' + p + '" marker-end="url(#g-arr)"/><path class="hit" data-dep="' + dp.id + '" d="' + p + '"/>';
+    });
+    var svg = '<svg class="g-svg" width="' + W + '" height="' + rowIdx * RH + '"><defs><marker id="g-arr" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="#475569"/></marker></defs>' + paths + '</svg>';
+    var tx = (d(TODAY) - min) / DAY * dw + dw / 2;
+    grid.innerHTML =
+      '<div class="g-left g-head"><div class="g-row" style="height:50px;font-weight:700">Daftar Task &amp; Board</div></div>' +
+      '<div class="g-head" style="width:' + W + 'px"><div class="g-months">' + months + '</div><div class="g-days">' + daysRow + '</div></div>' +
+      '<div class="g-left">' + left + '</div>' +
+      '<div class="g-body" style="width:' + W + 'px">' + track + svg + '<div class="g-line" style="left:' + tx + 'px"></div></div>';
+    bind();
+  }
+
+  function dragger(el, onDone, fixed) {
+    el.addEventListener('mousedown', function (e) {
+      if (e.button !== 0) return;
+      var mode = fixed ? 'm' : (e.target.classList.contains('l') ? 'l' : e.target.classList.contains('r') ? 'r' : 'm');
+      var sx = e.clientX, ol = parseFloat(el.style.left), ow = parseFloat(el.style.width), moved = false;
+      el.classList.add('dragging'); e.preventDefault();
+      function mv(ev) {
+        var dx = Math.round((ev.clientX - sx) / dw) * dw;
+        if (Math.abs(ev.clientX - sx) > 3) moved = true;
+        if (mode === 'm') el.style.left = (ol + dx) + 'px';
+        else if (mode === 'l' && ow - dx >= dw) { el.style.left = (ol + dx) + 'px'; el.style.width = (ow - dx) + 'px'; }
+        else if (mode === 'r' && ow + dx >= dw) { el.style.width = (ow + dx) + 'px'; }
+      }
+      function up() {
+        document.removeEventListener('mousemove', mv); document.removeEventListener('mouseup', up);
+        el.classList.remove('dragging'); onDone(moved, el);
+      }
+      document.addEventListener('mousemove', mv); document.addEventListener('mouseup', up);
+    });
+  }
+
+  function bind() {
+    grid.querySelectorAll('.task-name-btn').forEach(function (btn) {
+      btn.addEventListener('click', function () { var r = rowById(btn.dataset.id); if (r) openTaskQuickModal(r); });
+    });
+    grid.querySelectorAll('.g-bar').forEach(function (bar) {
+      var id = bar.dataset.id;
+      var conn = bar.querySelector('.g-conn');
+      if (conn) conn.addEventListener('click', function (e) { e.stopPropagation(); linkMode = true; linkSourceId = id; document.getElementById('link-banner').style.display = 'flex'; render(); });
+      if (linkMode) {
+        bar.addEventListener('click', function (e) {
+          e.stopPropagation();
+          if (linkSourceId && linkSourceId != id) post(URLS.depAdd, { from: linkSourceId, to: id }).then(reloadOrFail);
+        });
+        return;
+      }
+      dragger(bar, function (moved, el) {
+        var r = rowById(id);
+        if (!moved) { if (r) openTaskQuickModal(r); return; }
+        var s0 = Math.round(parseFloat(el.style.left) / dw), n = Math.max(1, Math.round(parseFloat(el.style.width) / dw));
+        var s = iso(min + s0 * DAY), en = iso(min + (s0 + n - 1) * DAY);
+        post(u('dates', id), { start: s, end: en }).then(function (j) {
+          if (!j.ok) { fail(j); location.reload(); return; }
+          r.start = s; r.end = en; r.is_nodate = false; render();
+        });
+      }, false);
+    });
+    grid.querySelectorAll('.g-ms').forEach(function (el) {
+      var id = el.dataset.ms;
+      el.addEventListener('contextmenu', function (e) { e.preventDefault(); if (confirm('Hapus milestone ini?')) post(u('msDel', id), {}).then(reloadOrFail); });
+      dragger(el, function (moved, node) {
+        if (!moved) { post(u('msToggle', id), {}).then(reloadOrFail); return; }
+        var day = Math.round((parseFloat(node.style.left) + 10 - dw / 2) / dw);
+        post(u('msMove', id), { date: iso(min + day * DAY) }).then(reloadOrFail);
+      }, true);
+    });
+    grid.querySelectorAll('.hit').forEach(function (p) {
+      p.addEventListener('click', function () { if (confirm('Hapus panah hubungan?')) post(u('depDel', p.dataset.dep), {}).then(reloadOrFail); });
+    });
+  }
+
+  function scrollToday() { var sc = document.getElementById('g-scroll'); if (sc) sc.scrollLeft = Math.max(0, (d(TODAY) - min) / DAY * dw - 150); }
+  document.querySelectorAll('[data-zoom]').forEach(function (b) { b.addEventListener('click', function () { dw = parseFloat(b.dataset.zoom); render(); scrollToday(); }); });
+  var todayBtn = document.getElementById('g-today');
+  if (todayBtn) todayBtn.addEventListener('click', scrollToday);
+  render(); scrollToday();
+})();
+</script>
+{% endblock %}

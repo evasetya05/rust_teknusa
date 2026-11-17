@@ -163,3 +163,4 @@ async fn seed_defaults(pool: &MySqlPool) -> Result<()> {
 
     Ok(())
 }
+

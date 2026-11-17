@@ -1,0 +1,105 @@
+version: '3.8'
+
+services:
+  db:
+    image: mariadb:11
+    container_name: teknusa_rust_mariadb
+    restart: unless-stopped
+    environment:
+      MARIADB_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-rootpassword123}
+      MARIADB_DATABASE: teknusas_teknusa
+      MARIADB_USER: teknusas_teknusa
+      MARIADB_PASSWORD: ${MYSQL_PASSWORD:-@Pontianak123}
+    ports:
+      - "3310:3306"
+    volumes:
+      - mariadb_data:/var/lib/mysql
+      - ./mysql.cnf:/etc/mysql/conf.d/mysql.cnf:ro
+    networks:
+      - teknusa_network
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 10s
+      timeout: 20s
+      retries: 10
+      start_period: 60s
+
+  redis:
+    image: redis:7-alpine
+    container_name: teknusa_rust_redis
+    restart: unless-stopped
+    ports:
+      - "6381:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - teknusa_network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: teknusa_rust_web
+    restart: unless-stopped
+    environment:
+      - HOST=0.0.0.0
+      - PORT=8000
+      - DEBUG=${DEBUG:-False}
+      - SECRET_KEY=${SECRET_KEY:-django-insecure-1234567890}
+      - DB_HOST=db
+      - DB_NAME=teknusas_teknusa
+      - DB_USER=teknusas_teknusa
+      - DB_PASSWORD=${MYSQL_PASSWORD:-@Pontianak123}
+      - DB_PORT=3306
+      - REDIS_URL=redis://redis:6379/0
+      - AGENT_LLM_MODE=${AGENT_LLM_MODE:-gemini}
+      - OLLAMA_URL=${OLLAMA_URL:-http://172.18.0.1:11434}
+      - OLLAMA_MODEL=${OLLAMA_MODEL:-llama3.2:1b}
+      - GEMINI_API_KEY=${GEMINI_API_KEY:-}
+      - GEMINI_MODEL=${GEMINI_MODEL:-gemini-1.5-flash}
+      - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN:-}
+      - TELEGRAM_CHAT_ID=${TELEGRAM_CHAT_ID:-}
+    dns:
+      - 8.8.8.8
+      - 1.1.1.1
+    ports:
+      - "8002:8000"
+    volumes:
+      - ./media:/app/media
+      - ./static:/app/static
+      - ./private:/app/private
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - teknusa_network
+
+  ollama:
+    image: ollama/ollama:latest
+    container_name: teknusa_rust_ollama
+    profiles: ["llm"]
+    restart: unless-stopped
+    volumes:
+      - ollama_data:/root/.ollama
+    networks:
+      - teknusa_network
+
+volumes:
+  mariadb_data:
+    driver: local
+  redis_data:
+    driver: local
+  ollama_data:
+    driver: local
+
+networks:
+  teknusa_network:
+    driver: bridge
+

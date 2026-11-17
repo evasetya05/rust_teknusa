@@ -476,3 +476,4 @@ CREATE TABLE IF NOT EXISTS `gantt_taskbaseline` (
     CONSTRAINT `gantt_bl_task_fk` FOREIGN KEY (`task_id`) REFERENCES `kanban_task` (`id`) ON DELETE CASCADE,
     CONSTRAINT `gantt_bl_user_fk` FOREIGN KEY (`set_by_id`) REFERENCES `auth_user` (`id`) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+

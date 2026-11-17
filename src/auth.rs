@@ -510,3 +510,4 @@ mod tests {
         assert!(decode_session_cookie("wrong-secret", &encoded).is_none());
     }
 }
+

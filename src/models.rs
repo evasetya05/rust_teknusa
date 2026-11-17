@@ -169,3 +169,4 @@ pub fn today_utc_date() -> NaiveDate {
     let now: DateTime<Utc> = Utc::now();
     now.date_naive()
 }
+

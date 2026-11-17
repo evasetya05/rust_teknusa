@@ -1,0 +1,258 @@
+{% extends "dashboard_layout.html" %}
+{% block title %}{% if is_edit %}Edit Task{% else %}Add Task{% endif %}{% endblock %}
+
+{% block main_content %}
+<nav aria-label="breadcrumb" class="mb-3">
+  <ol class="breadcrumb">
+    <li class="breadcrumb-item"><a href="/kanban/">Boards</a></li>
+    {% if is_edit %}
+    <li class="breadcrumb-item"><a href="/kanban/board/{{ object.board_id }}/">{{ object.board_name }}</a></li>
+    <li class="breadcrumb-item active">{{ object.title }}</li>
+    {% else %}
+    <li class="breadcrumb-item active">Add Task</li>
+    {% endif %}
+  </ol>
+</nav>
+
+<div class="row g-4">
+  <div class="{% if is_edit %}col-lg-7{% else %}col-12{% endif %}">
+    <div class="card border-0 shadow-sm">
+      <div class="card-header bg-white py-3 d-flex justify-content-between align-items-center">
+        <h5 class="mb-0">{% if is_edit %}<i class="fas fa-edit me-1 text-primary"></i> Edit Task{% else %}<i class="fas fa-plus me-1 text-primary"></i> Add Task{% endif %}</h5>
+        {% if is_edit %}
+        <form action="/kanban/task/{{ object.id }}/delete/" method="post" onsubmit="return confirm('Hapus task ini?')">
+          <button type="submit" class="btn btn-outline-danger btn-sm"><i class="fas fa-trash me-1"></i> Delete Task</button>
+        </form>
+        {% endif %}
+      </div>
+      <div class="card-body">
+        <form method="post">
+          <div class="mb-3">
+            <label class="form-label small fw-bold">Column *</label>
+            <select name="column" class="form-select" required>
+              {% for c in columns %}
+              <option value="{{ c.id }}" {% if is_edit and object.column_id == c.id %}selected{% endif %}>{{ c.board_name }} - {{ c.name }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="mb-3">
+            <label class="form-label small fw-bold">Title *</label>
+            <input type="text" name="title" class="form-control" value="{% if is_edit %}{{ object.title }}{% endif %}" required>
+          </div>
+          <div class="mb-3">
+            <label class="form-label small fw-bold">Description</label>
+            <textarea name="description" class="form-control" rows="3">{% if is_edit %}{{ object.description }}{% endif %}</textarea>
+          </div>
+          <div class="row g-3 mb-3">
+            <div class="col-md-4">
+              <label class="form-label small fw-bold">Priority</label>
+              <select name="priority" class="form-select">
+                <option value="low" {% if is_edit and object.priority == 'low' %}selected{% endif %}>Low</option>
+                <option value="medium" {% if not is_edit or object.priority == 'medium' %}selected{% endif %}>Medium</option>
+                <option value="high" {% if is_edit and object.priority == 'high' %}selected{% endif %}>High</option>
+                <option value="urgent" {% if is_edit and object.priority == 'urgent' %}selected{% endif %}>Urgent</option>
+              </select>
+            </div>
+            <div class="col-md-4">
+              <label class="form-label small fw-bold">Start Date</label>
+              <input type="date" name="start_date" class="form-control" value="{% if is_edit %}{{ object.start_date }}{% endif %}">
+            </div>
+            <div class="col-md-4">
+              <label class="form-label small fw-bold">Due Date</label>
+              <input type="date" name="due_date" class="form-control" value="{% if is_edit %}{{ object.due_date }}{% else %}{{ default_due_date }}{% endif %}">
+            </div>
+          </div>
+          <div class="row g-3 mb-3">
+            <div class="col-md-6">
+              <label class="form-label small fw-bold">Assignees</label>
+              <select name="assignees" class="form-select" multiple size="3">
+                {% for u in users_list %}
+                <option value="{{ u.id }}" {% if is_edit and u.id in selected_assignees %}selected{% endif %}>{{ u.name }}</option>
+                {% endfor %}
+              </select>
+            </div>
+            <div class="col-md-6">
+              <label class="form-label small fw-bold">Labels</label>
+              <select name="labels" class="form-select" multiple size="3">
+                {% for lb in labels_list %}
+                <option value="{{ lb.id }}" {% if is_edit and lb.id in selected_labels %}selected{% endif %}>{{ lb.name }}</option>
+                {% endfor %}
+              </select>
+            </div>
+          </div>
+          <div class="form-check mb-3">
+            <input type="checkbox" class="form-check-input" id="id_completed" name="completed" {% if is_edit and object.completed %}checked{% endif %}>
+            <label class="form-check-label fw-bold" for="id_completed">Completed</label>
+          </div>
+          <div class="d-flex gap-2">
+            <button type="submit" class="btn btn-primary"><i class="fas fa-save me-1"></i> Save Task</button>
+            <a href="{% if is_edit %}/kanban/board/{{ object.board_id }}/{% else %}/kanban/{% endif %}" class="btn btn-outline-secondary">Back to Board</a>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    {% if is_edit %}
+    <div class="card border-0 shadow-sm mt-4" id="task-checklist-card">
+      <div class="card-header bg-white py-3 d-flex justify-content-between align-items-center">
+        <h6 class="mb-0 fw-bold"><i class="fas fa-tasks text-primary me-2"></i>Checklist Pekerjaan</h6>
+        <span id="checklist-stats-badge" class="badge {% if checklist_stats.all_done %}bg-success{% elif checklist_stats.total > 0 %}bg-primary{% else %}bg-secondary{% endif %}">
+          <span id="stat-completed">{{ checklist_stats.completed }}</span>/<span id="stat-total">{{ checklist_stats.total }}</span> Selesai (<span id="stat-percent">{{ checklist_stats.percent }}</span>%)
+        </span>
+      </div>
+      <div class="card-body">
+        <div class="progress mb-3" style="height: 8px;">
+          <div id="checklist-progress-bar" class="progress-bar {% if checklist_stats.all_done %}bg-success{% else %}bg-primary{% endif %}" style="width: {{ checklist_stats.percent }}%;"></div>
+        </div>
+        <form id="add-checklist-form" class="mb-3">
+          <div class="input-group">
+            <input type="text" id="new-checklist-title" class="form-control form-control-sm" placeholder="Tambah item checklist baru..." required>
+            <button type="submit" class="btn btn-primary btn-sm px-3" id="btn-add-checklist">Tambah</button>
+          </div>
+        </form>
+        <div class="mb-3">
+          <div class="small fw-bold text-uppercase text-muted mb-2">Belum Selesai (<span id="pending-count">{{ checklists_pending | length }}</span>)</div>
+          <div id="checklist-pending-list" class="list-group list-group-flush">
+            {% for item in checklists_pending %}
+            <div class="list-group-item px-2 py-2 d-flex justify-content-between align-items-center checklist-row border rounded mb-1 bg-white" data-id="{{ item.id }}">
+              <div class="form-check mb-0 d-flex align-items-center flex-grow-1 me-2">
+                <input class="form-check-input checklist-toggle me-2" type="checkbox" id="chk-{{ item.id }}" data-id="{{ item.id }}">
+                <label class="form-check-label small mb-0 checklist-label" for="chk-{{ item.id }}">{{ item.title }}</label>
+              </div>
+              <button type="button" class="btn btn-link text-danger p-0 checklist-delete" data-id="{{ item.id }}"><i class="fas fa-times"></i></button>
+            </div>
+            {% endfor %}
+            <div id="no-pending-msg" class="text-muted small py-2 text-center fst-italic {% if checklists_pending %}d-none{% endif %}">Tidak ada item tertunda.</div>
+          </div>
+        </div>
+        <div class="mt-3 pt-2 border-top">
+          <details open>
+            <summary class="small fw-bold text-uppercase text-success mb-2" style="cursor:pointer;">Sudah Selesai (<span id="completed-count">{{ checklists_completed | length }}</span>)</summary>
+            <div id="checklist-completed-list" class="list-group list-group-flush mt-2">
+              {% for item in checklists_completed %}
+              <div class="list-group-item px-2 py-2 d-flex justify-content-between align-items-center checklist-row border rounded mb-1 bg-light text-muted" data-id="{{ item.id }}">
+                <div class="form-check mb-0 d-flex align-items-center flex-grow-1 me-2">
+                  <input class="form-check-input checklist-toggle me-2" type="checkbox" id="chk-{{ item.id }}" data-id="{{ item.id }}" checked>
+                  <label class="form-check-label small mb-0 checklist-label text-decoration-line-through text-muted" for="chk-{{ item.id }}">{{ item.title }}</label>
+                </div>
+                <button type="button" class="btn btn-link text-danger p-0 checklist-delete" data-id="{{ item.id }}"><i class="fas fa-times"></i></button>
+              </div>
+              {% endfor %}
+              <div id="no-completed-msg" class="text-muted small py-2 text-center fst-italic {% if checklists_completed %}d-none{% endif %}">Belum ada item diselesaikan.</div>
+            </div>
+          </details>
+        </div>
+      </div>
+    </div>
+    {% endif %}
+  </div>
+
+  {% if is_edit %}
+  <div class="col-lg-5">
+    <div class="card border-0 shadow-sm mb-4">
+      <div class="card-header bg-white py-3"><h6 class="mb-0 fw-bold"><i class="fas fa-paperclip text-success me-2"></i>Lampiran File ({{ attachments | length }})</h6></div>
+      <div class="card-body">
+        <form action="/kanban/task/{{ object.id }}/attachment/add/" method="post" enctype="multipart/form-data" class="mb-3 p-2 bg-light rounded border">
+          <input type="hidden" name="next" value="/kanban/task/{{ object.id }}/edit/">
+          <div class="input-group">
+            <input type="file" name="file" class="form-control form-control-sm" required>
+            <button type="submit" class="btn btn-success btn-sm">Upload</button>
+          </div>
+        </form>
+        {% for att in attachments %}
+        <div class="d-flex align-items-center justify-content-between p-2 mb-2 bg-white rounded border small">
+          <a href="{{ att.file_url }}" target="_blank" class="text-truncate text-decoration-none fw-semibold">{{ att.file_name }}</a>
+          <form action="/kanban/attachment/{{ att.id }}/delete/" method="post" class="d-inline">
+            <button type="submit" class="btn btn-sm btn-outline-danger py-0 px-2"><i class="fas fa-trash"></i></button>
+          </form>
+        </div>
+        {% else %}
+        <p class="text-muted small mb-0 text-center">Belum ada lampiran.</p>
+        {% endfor %}
+      </div>
+    </div>
+
+    <div class="card border-0 shadow-sm">
+      <div class="card-header bg-white py-3"><h6 class="mb-0 fw-bold"><i class="far fa-comments text-primary me-2"></i>Komentar ({{ comments | length }})</h6></div>
+      <div class="card-body">
+        <form action="/kanban/task/{{ object.id }}/comment/add/" method="post" class="mb-3">
+          <input type="hidden" name="next" value="/kanban/task/{{ object.id }}/edit/">
+          <textarea name="comment" class="form-control form-control-sm mb-2" rows="3" placeholder="Tulis komentar..." required></textarea>
+          <div class="text-end"><button type="submit" class="btn btn-primary btn-sm">Kirim Komentar</button></div>
+        </form>
+        {% for c in comments %}
+        <div class="p-2 mb-2 rounded bg-light border small">
+          <div class="d-flex justify-content-between mb-1">
+            <strong>{{ c.author_name }}</strong>
+            <span class="text-muted">{{ c.created_at }}</span>
+          </div>
+          <div style="white-space: pre-line;">{{ c.comment }}</div>
+        </div>
+        {% else %}
+        <p class="text-muted small mb-0 text-center">Belum ada komentar.</p>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}
+
+{% block page_js %}
+{% if is_edit %}
+<script>
+(function () {
+  function updateStats(stats) {
+    if (!stats) return;
+    document.getElementById('stat-completed').textContent = stats.completed;
+    document.getElementById('stat-total').textContent = stats.total;
+    document.getElementById('stat-percent').textContent = stats.percent;
+    document.getElementById('pending-count').textContent = stats.total - stats.completed;
+    document.getElementById('completed-count').textContent = stats.completed;
+    var bar = document.getElementById('checklist-progress-bar');
+    bar.style.width = stats.percent + '%';
+    bar.className = 'progress-bar ' + (stats.all_done ? 'bg-success' : 'bg-primary');
+    document.getElementById('no-pending-msg').classList.toggle('d-none', document.querySelectorAll('#checklist-pending-list .checklist-row').length > 0);
+    document.getElementById('no-completed-msg').classList.toggle('d-none', document.querySelectorAll('#checklist-completed-list .checklist-row').length > 0);
+  }
+  var addForm = document.getElementById('add-checklist-form');
+  var addInput = document.getElementById('new-checklist-title');
+  if (addForm) {
+    addForm.addEventListener('submit', function (e) {
+      e.preventDefault();
+      var title = addInput.value.trim();
+      if (!title) return;
+      var body = new URLSearchParams({ title: title, ajax: '1' });
+      fetch('/kanban/task/{{ object.id }}/checklist/add/', { method: 'POST', headers: { 'X-Requested-With': 'XMLHttpRequest' }, body: body })
+        .then(r => r.json())
+        .then(data => {
+          if (data.ok) location.reload();
+        });
+    });
+  }
+  document.querySelectorAll('.checklist-toggle').forEach(function (chk) {
+    chk.addEventListener('change', function () {
+      var id = chk.dataset.id;
+      fetch('/kanban/checklist/' + id + '/toggle/', { method: 'POST', headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+        .then(r => r.json())
+        .then(data => { if (data.ok) location.reload(); });
+    });
+  });
+  document.querySelectorAll('.checklist-delete').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      if (!confirm('Hapus item checklist?')) return;
+      var id = btn.dataset.id;
+      fetch('/kanban/checklist/' + id + '/delete/', { method: 'POST', headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+        .then(r => r.json())
+        .then(data => {
+          if (data.ok) {
+            btn.closest('.checklist-row').remove();
+            updateStats(data.stats);
+          }
+        });
+    });
+  });
+})();
+</script>
+{% endif %}
+{% endblock %}

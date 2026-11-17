@@ -1,0 +1,29 @@
+{% extends "dashboard_layout.html" %}
+{% block title %}Create Board - Kanban{% endblock %}
+
+{% block main_content %}
+<div class="d-flex justify-content-between align-items-center pb-2 mb-4 border-bottom">
+  <h1 class="h3 mb-0">Buat Board Kanban Baru</h1>
+  <a href="/kanban/" class="btn btn-outline-secondary btn-sm">← Boards</a>
+</div>
+<div class="row justify-content-center">
+  <div class="col-md-6">
+    <div class="card border-0 shadow-sm">
+      <div class="card-body p-4">
+        <form method="post">
+          <div class="mb-3">
+            <label class="form-label fw-bold small">Nama Board *</label>
+            <input type="text" name="name" class="form-control" required>
+          </div>
+          <div class="mb-3">
+            <label class="form-label fw-bold small">Deskripsi</label>
+            <textarea name="description" class="form-control" rows="3"></textarea>
+          </div>
+          <p class="small text-muted">Kolom default (To Do, In Progress, Done) akan dibuat otomatis.</p>
+          <button type="submit" class="btn btn-primary"><i class="fas fa-save me-1"></i> Simpan Board</button>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

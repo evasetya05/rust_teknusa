@@ -210,3 +210,4 @@ fn sanitize_next(raw: Option<&str>) -> String {
         _ => "/dashboard/".to_string(),
     }
 }
+
