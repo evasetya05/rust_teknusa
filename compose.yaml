@@ -20,49 +20,13 @@ services:
       retries: 5
       start_period: 10s
 
-  web:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    container_name: teknusa_rust_web
-    restart: unless-stopped
-    environment:
-      - HOST=0.0.0.0
-      - PORT=8000
-      - DEBUG=${DEBUG:-False}
-      - SECRET_KEY=${SECRET_KEY:-django-insecure-1234567890}
-      - DB_HOST=db
-      - DB_NAME=teknusas_teknusa
-      - DB_USER=teknusas_teknusa
-      - DB_PASSWORD=${POSTGRES_PASSWORD:-${DB_PASSWORD:-@Pontianak123}}
-      - DB_PORT=5432
-      - AGENT_LLM_MODE=${AGENT_LLM_MODE:-gemini}
-      - OLLAMA_URL=${OLLAMA_URL:-http://172.18.0.1:11434}
-      - OLLAMA_MODEL=${OLLAMA_MODEL:-llama3.2:1b}
-      - GEMINI_API_KEY=${GEMINI_API_KEY:-}
-      - GEMINI_MODEL=${GEMINI_MODEL:-gemini-1.5-flash}
-      - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN:-}
-      - TELEGRAM_CHAT_ID=${TELEGRAM_CHAT_ID:-}
-    dns:
-      - 8.8.8.8
-      - 1.1.1.1
-    ports:
-      - "8003:8000"
-    volumes:
-      - ./media:/app/media
-      - ./static:/app/static
-      - ./private:/app/private
-    depends_on:
-      db:
-        condition: service_healthy
-    networks:
-      - teknusa_network
-
   ollama:
     image: ollama/ollama:latest
     container_name: teknusa_rust_ollama
     profiles: ["llm"]
     restart: unless-stopped
+    ports:
+      - "11434:11434"
     volumes:
       - ollama_data:/root/.ollama
     networks:
