@@ -1,0 +1,100 @@
+{% extends "dashboard_layout.html" %}
+{% block title %}{% if is_edit %}Edit Lead{% else %}Tambah Lead{% endif %}{% endblock %}
+
+{% block main_content %}
+<div class="d-flex justify-content-between align-items-center pb-2 mb-3 border-bottom">
+  <h1 class="h3 mb-0">{% if is_edit %}Edit Lead: {{ lead.name }}{% else %}Tambah Lead Baru{% endif %}</h1>
+  <a href="/leads/" class="btn btn-outline-secondary btn-sm">← Kembali</a>
+</div>
+
+<div class="card border-0 shadow-sm">
+  <div class="card-body p-4">
+    <form method="post">
+      <div class="row g-3">
+        <div class="col-md-6">
+          <label class="form-label small fw-bold">Nama *</label>
+          <input type="text" name="name" class="form-control" value="{% if lead %}{{ lead.name }}{% endif %}" required>
+        </div>
+        <div class="col-md-6">
+          <label class="form-label small fw-bold">Perusahaan (Entity)</label>
+          <select name="entity" class="form-select">
+            <option value="">-- Umum --</option>
+            {% for ent in entities %}
+            <option value="{{ ent.id }}" {% if lead and lead.entity_id == ent.id %}selected{% elif not is_edit and default_entity_id == ent.id %}selected{% endif %}>{{ ent.name }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="col-md-6">
+          <label class="form-label small fw-bold">Email</label>
+          <input type="email" name="email" class="form-control" value="{% if lead %}{{ lead.email }}{% endif %}">
+        </div>
+        <div class="col-md-6">
+          <label class="form-label small fw-bold">Telepon</label>
+          <input type="text" name="phone" class="form-control" value="{% if lead %}{{ lead.phone }}{% endif %}">
+        </div>
+        <div class="col-md-6">
+          <label class="form-label small fw-bold">Company / Instansi</label>
+          <input type="text" name="company" class="form-control" value="{% if lead %}{{ lead.company }}{% endif %}">
+        </div>
+        <div class="col-md-6">
+          <label class="form-label small fw-bold">Account Medsos</label>
+          <input type="text" name="account_medsos" class="form-control" value="{% if lead %}{{ lead.account_medsos }}{% endif %}">
+        </div>
+        <div class="col-md-4">
+          <label class="form-label small fw-bold">Sumber Lead</label>
+          <select name="lead_source" class="form-select">
+            <option value="">-- Pilih --</option>
+            {% for opt in lead_source_choices %}
+            <option value="{{ opt.value }}" {% if lead and lead.lead_source == opt.value %}selected{% endif %}>{{ opt.label }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="col-md-4">
+          <label class="form-label small fw-bold">Prioritas</label>
+          <select name="priority" class="form-select">
+            {% for opt in priority_choices %}
+            <option value="{{ opt.value }}" {% if lead and lead.priority == opt.value %}selected{% elif not is_edit and opt.value == 'warm' %}selected{% endif %}>{{ opt.label }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="col-md-4">
+          <label class="form-label small fw-bold">Status</label>
+          <select name="status" class="form-select">
+            {% for opt in status_choices %}
+            <option value="{{ opt.value }}" {% if lead and lead.status == opt.value %}selected{% elif not is_edit and opt.value == 'new' %}selected{% endif %}>{{ opt.label }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="col-md-4">
+          <label class="form-label small fw-bold">Assigned To</label>
+          <select name="assigned_to" class="form-select">
+            <option value="">-- Belum ditugaskan --</option>
+            {% for u in users_options %}
+            <option value="{{ u.value }}" {% if lead and lead.assigned_to_id and lead.assigned_to_id == u.value | int %}selected{% endif %}>{{ u.label }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="col-md-4">
+          <label class="form-label small fw-bold">Estimasi Nilai (Rp)</label>
+          <input type="number" step="0.01" name="estimated_value" class="form-control" value="{% if lead %}{{ lead.estimated_value }}{% endif %}">
+        </div>
+        <div class="col-md-4">
+          <label class="form-label small fw-bold">Jadwal Follow-Up Berikutnya</label>
+          <input type="date" name="next_follow_up" class="form-control" value="{% if lead %}{{ lead.next_follow_up }}{% endif %}">
+        </div>
+      </div>
+
+      <hr class="my-4">
+      <h6 class="fw-bold mb-2">Tambah Catatan Interaksi (Opsional)</h6>
+      <div class="mb-3">
+        <textarea name="interaction_note[]" class="form-control" rows="2" placeholder="Catatan interaksi baru..."></textarea>
+      </div>
+
+      <div class="d-flex justify-content-end gap-2">
+        <a href="/leads/" class="btn btn-light">Batal</a>
+        <button type="submit" class="btn btn-primary"><i class="fas fa-save me-1"></i> Simpan Lead</button>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}

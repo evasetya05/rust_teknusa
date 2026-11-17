@@ -1,0 +1,53 @@
+{% extends "dashboard_layout.html" %}
+{% block title %}Daftar Jurnal - Ledger{% endblock %}
+
+{% block main_content %}
+<div class="d-flex justify-content-between align-items-center pb-2 mb-3 border-bottom">
+  <h1 class="h3 mb-0">Daftar Jurnal</h1>
+  <div class="d-flex gap-2">
+    <a href="/ledger/journal/journal/create/" class="btn btn-primary btn-sm"><i class="fas fa-plus me-1"></i> Buat Jurnal</a>
+    <a href="/ledger/" class="btn btn-outline-secondary btn-sm">← Ledger</a>
+  </div>
+</div>
+
+{% for grp in grouped_journals %}
+<div class="card border-0 shadow-sm mb-4">
+  <div class="card-header bg-dark text-white fw-bold d-flex justify-content-between">
+    <span>Periode: {{ grp.period }}</span>
+    <span class="badge bg-light text-dark">{{ grp.journals | length }} Jurnal</span>
+  </div>
+  <div class="card-body p-0">
+    {% for j in grp.journals %}
+    <div class="p-3 border-bottom">
+      <div class="d-flex justify-content-between align-items-center mb-2">
+        <div>
+          <strong>#{{ j.id }}</strong> ({{ j.date }}) — {{ j.description }}
+          {% if j.is_posted %}<span class="badge bg-success ms-1">Posted</span>{% else %}<span class="badge bg-warning text-dark ms-1">Draft</span>{% endif %}
+        </div>
+        <a href="/ledger/journal/journal/edit/{{ j.id }}/" class="btn btn-sm btn-outline-primary py-0">Edit</a>
+      </div>
+      <div class="table-responsive">
+        <table class="table table-sm table-bordered mb-0 small">
+          <thead class="table-light">
+            <tr><th>Akun</th><th class="text-end">Debit</th><th class="text-end">Credit</th><th>Note</th></tr>
+          </thead>
+          <tbody>
+            {% for it in j.items %}
+            <tr>
+              <td>{{ it.account_name }}</td>
+              <td class="text-end font-monospace">{{ it.debit | intcomma }}</td>
+              <td class="text-end font-monospace">{{ it.credit | intcomma }}</td>
+              <td>{{ it.note }}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+</div>
+{% else %}
+<div class="alert alert-light border text-center py-4 text-muted">Belum ada jurnal tercatat.</div>
+{% endfor %}
+{% endblock %}

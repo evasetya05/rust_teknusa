@@ -1,0 +1,39 @@
+{% extends "dashboard_layout.html" %}
+{% block title %}Channel Analytics - Post Media{% endblock %}
+
+{% block main_content %}
+<div class="d-flex justify-content-between align-items-center pb-2 mb-3 border-bottom">
+  <h1 class="h3 mb-0">Channel Analytics (1 Bulan)</h1>
+  <div class="d-flex gap-2">
+    <a href="/post_media/analytics/export/?market={{ selected_market }}&channel={{ selected_channel_type }}" class="btn btn-success btn-sm"><i class="fas fa-file-export me-1"></i> Export CSV</a>
+    <a href="/post_media/" class="btn btn-outline-secondary btn-sm">← Konten</a>
+  </div>
+</div>
+
+{% for item in data_by_market %}
+<div class="card border-0 shadow-sm mb-4">
+  <div class="card-header bg-dark text-white fw-bold">{{ item.market.name }}</div>
+  <div class="table-responsive">
+    <table class="table table-sm table-hover mb-0 small">
+      <thead class="table-light"><tr><th class="ps-3">Judul</th><th>Channel</th><th>Tanggal</th><th>Metrik 1 Bulan</th></tr></thead>
+      <tbody>
+        {% for ch in item.channels %}
+        <tr>
+          <td class="ps-3"><a href="/post_media/channel/{{ ch.obj.id }}/">{{ ch.obj.judul }}</a></td>
+          <td>{{ ch.obj.channel_name }}</td>
+          <td>{{ ch.obj.tanggal_posting | default(value="-") }}</td>
+          <td>
+            {% if ch.perf_1m %}
+              {% for m in ch.perf_1m.labeled %}<span class="badge bg-light text-dark border me-1">{{ m.label }}: {{ m.value }}</span>{% endfor %}
+            {% else %}-{% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% else %}
+<div class="alert alert-light border text-center py-4 text-muted">Belum ada data analitik.</div>
+{% endfor %}
+{% endblock %}

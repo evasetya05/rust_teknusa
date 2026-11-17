@@ -1,0 +1,68 @@
+{% extends "dashboard_layout.html" %}
+{% block title %}Laporan Laba Rugi - Ledger{% endblock %}
+
+{% block main_content %}
+<div class="d-flex justify-content-between align-items-center pb-2 mb-3 border-bottom">
+  <h1 class="h3 mb-0">Laporan Laba Rugi (Profit &amp; Loss)</h1>
+  <a href="/ledger/" class="btn btn-outline-secondary btn-sm">← Ledger</a>
+</div>
+
+<form method="get" class="card card-body border-0 shadow-sm mb-4">
+  <div class="row g-2 align-items-end">
+    <div class="col-md-3">
+      <label class="form-label small fw-bold">Mode</label>
+      <select name="mode" class="form-select form-select-sm" onchange="this.form.submit()">
+        <option value="period" {% if mode == 'period' %}selected{% endif %}>Per Periode Closed</option>
+        <option value="year" {% if mode == 'year' %}selected{% endif %}>Per Tahun</option>
+      </select>
+    </div>
+    {% if mode == 'period' %}
+    <div class="col-md-4">
+      <label class="form-label small fw-bold">Periode</label>
+      <select name="period" class="form-select form-select-sm" onchange="this.form.submit()">
+        {% for p in closing_periods %}<option value="{{ p.period }}" {% if selected_period == p.period %}selected{% endif %}>{{ p.period }}</option>{% endfor %}
+      </select>
+    </div>
+    {% else %}
+    <div class="col-md-4">
+      <label class="form-label small fw-bold">Tahun</label>
+      <input type="number" name="year" class="form-control form-control-sm" value="{{ selected_year }}">
+    </div>
+    {% endif %}
+    <div class="col-md-2"><button type="submit" class="btn btn-primary btn-sm w-100">Tampilkan</button></div>
+  </div>
+</form>
+
+<div class="row g-3 mb-4">
+  <div class="col-md-4"><div class="card border-0 shadow-sm p-3"><div class="small text-muted">Total Pendapatan</div><div class="h4 fw-bold text-success mb-0">Rp {{ total_income | intcomma }}</div></div></div>
+  <div class="col-md-4"><div class="card border-0 shadow-sm p-3"><div class="small text-muted">Total Beban</div><div class="h4 fw-bold text-danger mb-0">Rp {{ total_expense | intcomma }}</div></div></div>
+  <div class="col-md-4"><div class="card border-0 shadow-sm p-3"><div class="small text-muted">Laba / (Rugi) Bersih</div><div class="h4 fw-bold {% if net_income >= 0 %}text-primary{% else %}text-danger{% endif %} mb-0">Rp {{ net_income | intcomma }}</div></div></div>
+</div>
+
+<div class="row g-4">
+  <div class="col-md-6">
+    <div class="card border-0 shadow-sm">
+      <div class="card-header bg-success text-white fw-bold">Pendapatan (Income)</div>
+      <div class="list-group list-group-flush small">
+        {% for inc in income_data %}
+        <div class="list-group-item d-flex justify-content-between"><span>{{ inc.account.account_name }}</span><strong class="font-monospace">Rp {{ inc.subtotal | intcomma }}</strong></div>
+        {% else %}
+        <div class="list-group-item text-muted">Tidak ada data pendapatan.</div>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+  <div class="col-md-6">
+    <div class="card border-0 shadow-sm">
+      <div class="card-header bg-danger text-white fw-bold">Beban (Expenses)</div>
+      <div class="list-group list-group-flush small">
+        {% for exp in expense_data %}
+        <div class="list-group-item d-flex justify-content-between"><span>{{ exp.account.account_name }}</span><strong class="font-monospace">Rp {{ exp.subtotal | intcomma }}</strong></div>
+        {% else %}
+        <div class="list-group-item text-muted">Tidak ada data beban.</div>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

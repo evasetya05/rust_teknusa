@@ -1,0 +1,33 @@
+{% extends "dashboard_layout.html" %}
+{% block title %}Lean Innovation - Ideas{% endblock %}
+
+{% block main_content %}
+<div class="d-flex justify-content-between align-items-center pb-2 mb-4 border-bottom">
+  <h1 class="h2 mb-0"><i class="fas fa-stream text-primary me-2"></i>Lean Startup Ideas</h1>
+  <a href="/lean/ideas/create/" class="btn btn-primary btn-sm"><i class="fas fa-plus me-1"></i> Create Idea</a>
+</div>
+
+<div class="row g-3">
+  {% for idea in ideas %}
+  <div class="col-md-6 col-lg-4">
+    <div class="card border-0 shadow-sm h-100">
+      <div class="card-body">
+        <div class="d-flex justify-content-between align-items-start mb-2">
+          <h5 class="card-title mb-0"><a href="/lean/idea/{{ idea.id }}/" class="text-decoration-none">{{ idea.title }}</a></h5>
+          <span class="badge bg-light text-dark border">{{ idea.status }}</span>
+        </div>
+        <p class="text-muted small">{{ idea.description | truncate(length=140) }}</p>
+        <div class="d-flex justify-content-between small text-muted">
+          <span>Priority: {{ idea.priority }}</span>
+          <span>{{ idea.created_at }}</span>
+        </div>
+      </div>
+    </div>
+  </div>
+  {% else %}
+  <div class="col-12">
+    <div class="alert alert-light border text-center py-4 text-muted">Belum ada Idea. Klik Create Idea untuk memulai.</div>
+  </div>
+  {% endfor %}
+</div>
+{% endblock %}

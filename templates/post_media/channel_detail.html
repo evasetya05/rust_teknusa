@@ -1,0 +1,44 @@
+{% extends "dashboard_layout.html" %}
+{% block title %}{{ channel.judul }} - Post Media{% endblock %}
+
+{% block main_content %}
+<div class="d-flex justify-content-between align-items-center pb-2 mb-3 border-bottom">
+  <div>
+    <h1 class="h3 mb-0">{{ channel.judul }}</h1>
+    <small class="text-muted">{{ channel.market_name }} • {{ channel.channel_name }} • {{ channel.jenis_konten }}</small>
+  </div>
+  <div class="d-flex gap-2">
+    <a href="/post_media/channel/{{ channel.id }}/update-performance/" class="btn btn-primary btn-sm">Update Performance</a>
+    <a href="/post_media/edit/{{ channel.id }}/" class="btn btn-outline-secondary btn-sm">Edit</a>
+    <a href="/post_media/" class="btn btn-outline-secondary btn-sm">← Kembali</a>
+  </div>
+</div>
+
+<div class="card border-0 shadow-sm mb-4">
+  <div class="card-body small">
+    <div><strong>Akun:</strong> {{ channel.akun_name | default(value="-") }} | <strong>Funnel:</strong> {{ channel.funnel_stage_name | default(value="-") }} | <strong>Biaya:</strong> {{ channel.kategori_biaya_name | default(value="-") }} ({{ channel.amount | default(value="-") }})</div>
+    <hr>
+    <div style="white-space: pre-wrap;">{{ channel.isi_konten }}</div>
+  </div>
+</div>
+
+<div class="row g-3">
+  {% for period, perf in performances %}
+  <div class="col-md-4">
+    <div class="card border-0 shadow-sm h-100">
+      <div class="card-header bg-white fw-bold d-flex justify-content-between">
+        <span>Periode: {{ period }}</span>
+        <a href="/post_media/channel/{{ channel.id }}/update-performance/" class="small">Update</a>
+      </div>
+      <div class="card-body small">
+        {% for m in perf.labeled %}
+        <div class="d-flex justify-content-between py-1 border-bottom"><span>{{ m.label }}</span><strong>{{ m.value }}</strong></div>
+        {% else %}
+        <p class="text-muted mb-0">Belum ada metrik.</p>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+{% endblock %}

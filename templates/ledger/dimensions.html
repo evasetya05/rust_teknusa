@@ -1,0 +1,41 @@
+{% extends "dashboard_layout.html" %}
+{% block title %}Master Dimensi - Ledger{% endblock %}
+
+{% block main_content %}
+<div class="d-flex justify-content-between align-items-center pb-2 mb-3 border-bottom">
+  <h1 class="h3 mb-0">Master Dimensi Akuntansi</h1>
+  <a href="/ledger/" class="btn btn-outline-secondary btn-sm">← Ledger</a>
+</div>
+
+<form method="post" action="/ledger/dimensions/create/" class="card card-body border-0 shadow-sm mb-4">
+  <h6 class="fw-bold mb-3">Tambah Data Dimensi Baru</h6>
+  <div class="row g-2 align-items-end">
+    <div class="col-md-3">
+      <label class="form-label small fw-bold">Jenis Dimensi</label>
+      <select name="dim_type" class="form-select form-select-sm" required>
+        <option value="cost_center">Cost Center</option>
+        <option value="profit_center">Profit Center</option>
+        <option value="project">Project</option>
+        <option value="activity">Activity</option>
+        <option value="location">Location</option>
+        <option value="partner">Partner</option>
+        <option value="product">Product</option>
+      </select>
+    </div>
+    <div class="col-md-2"><label class="form-label small fw-bold">Kode *</label><input type="text" name="code" class="form-control form-control-sm" required></div>
+    <div class="col-md-3"><label class="form-label small fw-bold">Nama *</label><input type="text" name="name" class="form-control form-control-sm" required></div>
+    <div class="col-md-2"><label class="form-label small fw-bold">Keterangan</label><input type="text" name="description" class="form-control form-control-sm"></div>
+    <div class="col-md-2"><button type="submit" class="btn btn-primary btn-sm w-100">+ Tambah</button></div>
+  </div>
+</form>
+
+<div class="row g-3 small">
+  <div class="col-md-4"><div class="card border-0 shadow-sm p-3"><strong>Cost Centers</strong><ul class="mt-2 mb-0 ps-3">{% for d in cost_centers %}<li>{{ d.code }} - {{ d.name }}</li>{% else %}<li class="text-muted">-</li>{% endfor %}</ul></div></div>
+  <div class="col-md-4"><div class="card border-0 shadow-sm p-3"><strong>Profit Centers</strong><ul class="mt-2 mb-0 ps-3">{% for d in profit_centers %}<li>{{ d.code }} - {{ d.name }}</li>{% else %}<li class="text-muted">-</li>{% endfor %}</ul></div></div>
+  <div class="col-md-4"><div class="card border-0 shadow-sm p-3"><strong>Projects</strong><ul class="mt-2 mb-0 ps-3">{% for d in projects %}<li>{{ d.code }} - {{ d.name }}</li>{% else %}<li class="text-muted">-</li>{% endfor %}</ul></div></div>
+  <div class="col-md-4"><div class="card border-0 shadow-sm p-3"><strong>Activities</strong><ul class="mt-2 mb-0 ps-3">{% for d in activities %}<li>{{ d.code }} - {{ d.name }}</li>{% else %}<li class="text-muted">-</li>{% endfor %}</ul></div></div>
+  <div class="col-md-4"><div class="card border-0 shadow-sm p-3"><strong>Locations</strong><ul class="mt-2 mb-0 ps-3">{% for d in locations %}<li>{{ d.code }} - {{ d.name }}</li>{% else %}<li class="text-muted">-</li>{% endfor %}</ul></div></div>
+  <div class="col-md-4"><div class="card border-0 shadow-sm p-3"><strong>Partners</strong><ul class="mt-2 mb-0 ps-3">{% for d in partners %}<li>{{ d.code }} - {{ d.name }}</li>{% else %}<li class="text-muted">-</li>{% endfor %}</ul></div></div>
+  <div class="col-md-4"><div class="card border-0 shadow-sm p-3"><strong>Products</strong><ul class="mt-2 mb-0 ps-3">{% for d in products %}<li>{{ d.code }} - {{ d.name }}</li>{% else %}<li class="text-muted">-</li>{% endfor %}</ul></div></div>
+</div>
+{% endblock %}

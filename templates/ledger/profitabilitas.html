@@ -1,0 +1,59 @@
+{% extends "dashboard_layout.html" %}
+{% block title %}Analisis Profitabilitas - Ledger{% endblock %}
+
+{% block main_content %}
+<div class="d-flex justify-content-between align-items-center pb-2 mb-3 border-bottom">
+  <h1 class="h3 mb-0">Analisis Profitabilitas</h1>
+  <a href="/ledger/" class="btn btn-outline-secondary btn-sm">← Ledger</a>
+</div>
+
+<form method="get" class="card card-body border-0 shadow-sm mb-4">
+  <div class="row g-2 align-items-end">
+    <div class="col-md-3">
+      <label class="form-label small fw-bold">Mode</label>
+      <select name="mode" class="form-select form-select-sm" onchange="this.form.submit()">
+        <option value="period" {% if mode == 'period' %}selected{% endif %}>Per Periode</option>
+        <option value="year" {% if mode == 'year' %}selected{% endif %}>Per Tahun</option>
+      </select>
+    </div>
+    {% if mode == 'period' %}
+    <div class="col-md-4">
+      <label class="form-label small fw-bold">Periode</label>
+      <select name="period" class="form-select form-select-sm" onchange="this.form.submit()">
+        {% for p in periods %}<option value="{{ p.period }}" {% if periode == p.period %}selected{% endif %}>{{ p.period }}</option>{% endfor %}
+      </select>
+    </div>
+    {% else %}
+    <div class="col-md-4">
+      <label class="form-label small fw-bold">Tahun</label>
+      <input type="number" name="year" class="form-control form-control-sm" value="{{ tahun }}">
+    </div>
+    {% endif %}
+    <div class="col-md-2"><button type="submit" class="btn btn-primary btn-sm w-100">Hitung</button></div>
+  </div>
+</form>
+
+<div class="row g-3 mb-4">
+  <div class="col-md-3"><div class="card border-0 shadow-sm p-3"><div class="small text-muted">Pendapatan</div><div class="h5 fw-bold mb-0">Rp {{ pendapatan | intcomma }}</div></div></div>
+  <div class="col-md-3"><div class="card border-0 shadow-sm p-3"><div class="small text-muted">HPP / COGS</div><div class="h5 fw-bold mb-0">Rp {{ hpp | intcomma }}</div></div></div>
+  <div class="col-md-3"><div class="card border-0 shadow-sm p-3"><div class="small text-muted">Laba Kotor</div><div class="h5 fw-bold mb-0">Rp {{ laba_kotor | intcomma }}</div></div></div>
+  <div class="col-md-3"><div class="card border-0 shadow-sm p-3"><div class="small text-muted">Laba Bersih</div><div class="h5 fw-bold text-primary mb-0">Rp {{ laba_bersih | intcomma }}</div></div></div>
+</div>
+
+<div class="row g-3">
+  {% for r in ratios %}
+  <div class="col-md-6">
+    <div class="card border-0 shadow-sm h-100">
+      <div class="card-body">
+        <div class="d-flex justify-content-between align-items-center mb-2">
+          <h5 class="h6 fw-bold mb-0">{{ r.nama }}</h5>
+          <span class="badge bg-primary fs-6">{{ r.hasil }}</span>
+        </div>
+        <div class="small text-muted mb-1">Rumus: {{ r.rumus }}</div>
+        <div class="small font-monospace">{{ r.detail }}</div>
+      </div>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+{% endblock %}

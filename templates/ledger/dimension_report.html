@@ -1,0 +1,115 @@
+{% extends "dashboard_layout.html" %}
+{% block title %}Analisis Dimensi - Ledger{% endblock %}
+
+{% block main_content %}
+<div class="d-flex justify-content-between align-items-center pb-2 mb-3 border-bottom">
+  <h1 class="h3 mb-0"><i class="fas fa-tags text-primary me-2"></i>Laporan Analisis Dimensi</h1>
+  <div class="d-flex gap-2">
+    <a href="/ledger/dimensions/" class="btn btn-outline-primary btn-sm">Kelola Master Dimensi</a>
+    <a href="/ledger/" class="btn btn-outline-secondary btn-sm">← Ledger</a>
+  </div>
+</div>
+
+<form method="get" class="card card-body border-0 shadow-sm mb-4">
+  <div class="row g-2 align-items-end">
+    <div class="col-md-3">
+      <label class="form-label small fw-bold">Dimensi</label>
+      <select name="dimension" class="form-select form-select-sm" onchange="this.form.submit()">
+        {% for d in dim_choices %}<option value="{{ d.key }}" {% if d.is_selected %}selected{% endif %}>{{ d.label }}</option>{% endfor %}
+      </select>
+    </div>
+    <div class="col-md-2">
+      <label class="form-label small fw-bold">Mode Waktu</label>
+      <select name="mode" class="form-select form-select-sm" onchange="this.form.submit()">
+        <option value="period" {% if mode == 'period' %}selected{% endif %}>Periode</option>
+        <option value="year" {% if mode == 'year' %}selected{% endif %}>Tahun</option>
+        <option value="range" {% if mode == 'range' %}selected{% endif %}>Rentang</option>
+      </select>
+    </div>
+    {% if mode == 'period' %}
+    <div class="col-md-2">
+      <label class="form-label small fw-bold">Periode</label>
+      <select name="period" class="form-select form-select-sm">
+        <option value="">Semua</option>
+        {% for p in closing_periods %}<option value="{{ p.period }}" {% if selected_period == p.period %}selected{% endif %}>{{ p.period }}</option>{% endfor %}
+      </select>
+    </div>
+    {% elif mode == 'year' %}
+    <div class="col-md-2"><label class="form-label small fw-bold">Tahun</label><input type="number" name="year" class="form-control form-control-sm" value="{{ selected_year }}"></div>
+    {% else %}
+    <div class="col-md-2"><label class="form-label small fw-bold">Dari</label><input type="date" name="start_date" class="form-control form-control-sm" value="{{ start_date }}"></div>
+    <div class="col-md-2"><label class="form-label small fw-bold">Sampai</label><input type="date" name="end_date" class="form-control form-control-sm" value="{{ end_date }}"></div>
+    {% endif %}
+    <div class="col-md-2">
+      <label class="form-label small fw-bold">Tipe Akun</label>
+      <select name="account_type" class="form-select form-select-sm">
+        <option value="all" {% if account_filter_type == 'all' %}selected{% endif %}>Semua</option>
+        <option value="income_expense" {% if account_filter_type == 'income_expense' %}selected{% endif %}>Laba Rugi</option>
+        <option value="income" {% if account_filter_type == 'income' %}selected{% endif %}>Income</option>
+        <option value="expense" {% if account_filter_type == 'expense' %}selected{% endif %}>Expense</option>
+      </select>
+    </div>
+    <div class="col-md-2"><button type="submit" class="btn btn-primary btn-sm w-100">Filter</button></div>
+  </div>
+</form>
+
+<div class="row g-3 mb-4">
+  <div class="col-md-3"><div class="card border-0 shadow-sm p-3"><div class="small text-muted">Transaksi</div><div class="h4 fw-bold mb-0">{{ grand_total_transactions }}</div></div></div>
+  <div class="col-md-3"><div class="card border-0 shadow-sm p-3"><div class="small text-muted">Total Income</div><div class="h4 fw-bold text-success mb-0">Rp {{ grand_total_income | intcomma }}</div></div></div>
+  <div class="col-md-3"><div class="card border-0 shadow-sm p-3"><div class="small text-muted">Total Expense</div><div class="h4 fw-bold text-danger mb-0">Rp {{ grand_total_expense | intcomma }}</div></div></div>
+  <div class="col-md-3"><div class="card border-0 shadow-sm p-3"><div class="small text-muted">Margin</div><div class="h4 fw-bold text-primary mb-0">Rp {{ grand_total_margin | intcomma }}</div></div></div>
+</div>
+
+<div class="card border-0 shadow-sm mb-4">
+  <div class="card-header bg-white fw-bold">Ringkasan per {{ dim_label }}</div>
+  <div class="table-responsive">
+    <table class="table table-hover mb-0 small">
+      <thead class="table-light">
+        <tr><th class="ps-3">Kode</th><th>Nama</th><th class="text-end">Tx</th><th class="text-end">Debit</th><th class="text-end">Credit</th><th class="text-end">Income</th><th class="text-end">Expense</th><th class="pe-3 text-end">Margin</th></tr>
+      </thead>
+      <tbody>
+        {% for r in summary_rows %}
+        <tr>
+          <td class="ps-3">{{ r.code }}</td>
+          <td class="fw-semibold">{{ r.name }}</td>
+          <td class="text-end">{{ r.tx_count }}</td>
+          <td class="text-end font-monospace">{{ r.debit | intcomma }}</td>
+          <td class="text-end font-monospace">{{ r.credit | intcomma }}</td>
+          <td class="text-end font-monospace text-success">{{ r.income | intcomma }}</td>
+          <td class="text-end font-monospace text-danger">{{ r.expense | intcomma }}</td>
+          <td class="pe-3 text-end font-monospace fw-bold">{{ r.margin | intcomma }}</td>
+        </tr>
+        {% else %}
+        <tr><td colspan="8" class="text-center py-3 text-muted">Tidak ada data.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<div class="card border-0 shadow-sm">
+  <div class="card-header bg-white fw-bold">Rincian Transaksi ({{ detail_rows | length }})</div>
+  <div class="table-responsive">
+    <table class="table table-sm table-hover mb-0 small">
+      <thead class="table-light">
+        <tr><th class="ps-3">Tanggal</th><th>Jurnal</th><th>Akun</th><th>Dimensi</th><th class="text-end">Debit</th><th class="text-end">Credit</th><th class="pe-3 text-end">Running</th></tr>
+      </thead>
+      <tbody>
+        {% for d in detail_rows %}
+        <tr>
+          <td class="ps-3">{{ d.date }}</td>
+          <td>#{{ d.entry_id }} — {{ d.description }}</td>
+          <td>{{ d.account_name }}</td>
+          <td>{{ d.dimension_value }}</td>
+          <td class="text-end font-monospace">{{ d.debit | intcomma }}</td>
+          <td class="text-end font-monospace">{{ d.credit | intcomma }}</td>
+          <td class="pe-3 text-end font-monospace">{{ d.running_balance | intcomma }}</td>
+        </tr>
+        {% else %}
+        <tr><td colspan="7" class="text-center py-3 text-muted">Tidak ada rincian transaksi.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,77 @@
+{% extends "dashboard_layout.html" %}
+{% block title %}{% if is_edit %}Edit Perusahaan{% else %}Tambah Perusahaan{% endif %}{% endblock %}
+
+{% block main_content %}
+<div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-2 pb-2 mb-4 border-bottom">
+    <h1 class="h2">{% if is_edit %}Edit Perusahaan: {{ object.name }}{% else %}Tambah Perusahaan Baru{% endif %}</h1>
+    <div class="btn-toolbar mb-2 mb-md-0">
+        <a href="/entity/" class="btn btn-outline-secondary">
+            <i class="fas fa-arrow-left me-2"></i> Kembali ke Daftar
+        </a>
+    </div>
+</div>
+
+<div class="row justify-content-center">
+    <div class="col-lg-8">
+        <div class="card border-0 shadow-sm rounded-3">
+            <div class="card-body p-4">
+                {% if error %}
+                <div class="alert alert-danger py-2 small">{{ error }}</div>
+                {% endif %}
+                <form method="post" enctype="multipart/form-data">
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <label class="form-label fw-bold" for="id_name">Nama Perusahaan *</label>
+                            <input type="text" id="id_name" name="name" class="form-control" value="{% if raw_entity %}{{ raw_entity.name }}{% endif %}" required>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-bold" for="id_code">Kode Perusahaan * (Unik)</label>
+                            <input type="text" id="id_code" name="code" class="form-control" value="{% if raw_entity %}{{ raw_entity.code }}{% endif %}" required>
+                            <small class="text-muted">Gunakan kode singkat tanpa spasi, misal: TEKNUSA, AGRO.</small>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-bold" for="id_email">Email Perusahaan</label>
+                            <input type="email" id="id_email" name="email" class="form-control" value="{% if raw_entity %}{{ raw_entity.email }}{% endif %}">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-bold" for="id_phone">No. Telepon</label>
+                            <input type="text" id="id_phone" name="phone" class="form-control" value="{% if raw_entity %}{{ raw_entity.phone }}{% endif %}">
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label fw-bold" for="id_parent">Perusahaan Induk (Parent Entity)</label>
+                            <select id="id_parent" name="parent" class="form-select">
+                                <option value="">-- Tidak ada (Induk Utama) --</option>
+                                {% for ent in all_entities %}
+                                <option value="{{ ent.id }}" {% if raw_entity and raw_entity.parent_id == ent.id %}selected{% endif %}>{{ ent.name }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label fw-bold" for="id_description">Deskripsi / Alamat</label>
+                            <textarea id="id_description" name="description" class="form-control" rows="3">{% if raw_entity %}{{ raw_entity.description }}{% endif %}</textarea>
+                        </div>
+                        <div class="col-md-8">
+                            <label class="form-label fw-bold" for="id_logo">Upload Logo</label>
+                            <input type="file" id="id_logo" name="logo" class="form-control" accept="image/*">
+                            {% if object and object.logo_url %}
+                            <div class="mt-2 small text-muted">Logo saat ini: <a href="{{ object.logo_url }}" target="_blank">{{ object.logo_url }}</a></div>
+                            {% endif %}
+                        </div>
+                        <div class="col-md-4 d-flex align-items-center">
+                            <div class="form-check form-switch mt-3">
+                                <input class="form-check-input" type="checkbox" id="id_is_active" name="is_active" {% if not is_edit or raw_entity.is_active %}checked{% endif %}>
+                                <label class="form-check-label fw-bold" for="id_is_active">Status Aktif</label>
+                            </div>
+                        </div>
+                    </div>
+                    <hr class="my-4">
+                    <div class="d-flex justify-content-end gap-2">
+                        <a href="/entity/" class="btn btn-light">Batal</a>
+                        <button type="submit" class="btn btn-primary"><i class="fas fa-save me-1"></i> Simpan</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

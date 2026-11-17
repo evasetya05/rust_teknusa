@@ -1,0 +1,50 @@
+{% extends "dashboard_layout.html" %}
+{% block title %}Closing Periods - Ledger{% endblock %}
+
+{% block main_content %}
+<div class="d-flex justify-content-between align-items-center pb-2 mb-3 border-bottom">
+  <h1 class="h3 mb-0">Periode Akuntansi (Closing Periods)</h1>
+  <a href="/ledger/" class="btn btn-outline-secondary btn-sm">← Ledger</a>
+</div>
+
+<div class="card border-0 shadow-sm">
+  <div class="table-responsive">
+    <table class="table table-hover align-middle mb-0 small">
+      <thead class="table-light">
+        <tr>
+          <th class="ps-3">Periode</th>
+          <th>Status</th>
+          <th>Ditutup Pada</th>
+          <th>Ditutup Oleh</th>
+          <th class="pe-3 text-end">Aksi</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for p in periods %}
+        <tr>
+          <td class="ps-3 fw-bold">{{ p.period }}</td>
+          <td>
+            {% if p.is_closed %}
+            <span class="badge bg-secondary">Closed</span>
+            {% else %}
+            <span class="badge bg-success">Open</span>
+            {% endif %}
+          </td>
+          <td>{{ p.closed_at | default(value="-") }}</td>
+          <td>{{ p.closed_by | default(value="-") }}</td>
+          <td class="pe-3 text-end">
+            {% if not p.is_closed %}
+            <form method="post" action="/ledger/closing/closing-periods/{{ p.period }}/close/" class="d-inline" onsubmit="return confirm('Tutup periode {{ p.period }}? Semua jurnal unposted akan di-post ke periode ini.');">
+              <button type="submit" class="btn btn-sm btn-danger">Tutup Periode</button>
+            </form>
+            {% else %}
+            <span class="text-muted">-</span>
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

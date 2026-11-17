@@ -1,0 +1,52 @@
+{% extends "dashboard_layout.html" %}
+{% block title %}{{ title }}{% endblock %}
+
+{% block main_content %}
+<div class="d-flex justify-content-between align-items-center pb-2 mb-3 border-bottom">
+  <h1 class="h3 mb-0">{{ title }}</h1>
+  <a href="{{ back_url }}" class="btn btn-outline-secondary btn-sm">← Kembali</a>
+</div>
+<div class="card border-0 shadow-sm">
+  <div class="card-body p-4">
+    <form method="post">
+      {% if item_type == 'idea' %}
+        <div class="mb-3"><label class="form-label fw-bold small">Title *</label><input type="text" name="title" class="form-control" value="{% if item %}{{ item.title }}{% endif %}" required></div>
+        <div class="mb-3"><label class="form-label fw-bold small">Description</label><textarea name="description" class="form-control" rows="3">{% if item %}{{ item.description }}{% endif %}</textarea></div>
+        <div class="mb-3"><label class="form-label fw-bold small">Assumptions</label><textarea name="assumptions" class="form-control" rows="3">{% if item %}{{ item.assumptions }}{% endif %}</textarea></div>
+        <div class="row g-3 mb-3">
+          <div class="col-md-6"><label class="form-label fw-bold small">Priority</label><input type="number" name="priority" class="form-control" value="{% if item %}{{ item.priority }}{% else %}0{% endif %}"></div>
+          <div class="col-md-6"><label class="form-label fw-bold small">Status</label>
+            <select name="status" class="form-select">{% for s in status_choices %}<option value="{{ s.value }}" {% if item and item.status == s.value %}selected{% endif %}>{{ s.label }}</option>{% endfor %}</select>
+          </div>
+        </div>
+      {% elif item_type == 'build' %}
+        <div class="mb-3"><label class="form-label fw-bold small">Title *</label><input type="text" name="title" class="form-control" value="{% if item %}{{ item.title }}{% endif %}" required></div>
+        <div class="mb-3"><label class="form-label fw-bold small">Description</label><textarea name="description" class="form-control" rows="3">{% if item %}{{ item.description }}{% endif %}</textarea></div>
+        <div class="mb-3"><label class="form-label fw-bold small">Link</label><input type="url" name="link" class="form-control" value="{% if item %}{{ item.link }}{% endif %}"></div>
+        <div class="mb-3"><label class="form-label fw-bold small">Status</label>
+          <select name="status" class="form-select">{% for s in status_choices %}<option value="{{ s.value }}" {% if item and item.status == s.value %}selected{% endif %}>{{ s.label }}</option>{% endfor %}</select>
+        </div>
+      {% elif item_type == 'product' %}
+        <div class="mb-3"><label class="form-label fw-bold small">Name *</label><input type="text" name="name" class="form-control" value="{% if item %}{{ item.name }}{% endif %}" required></div>
+        <div class="mb-3"><label class="form-label fw-bold small">Description</label><textarea name="description" class="form-control" rows="3">{% if item %}{{ item.description }}{% endif %}</textarea></div>
+        <div class="form-check mb-3"><input type="checkbox" class="form-check-input" id="id_pub" name="public" {% if item and item.public %}checked{% endif %}><label class="form-check-label" for="id_pub">Public</label></div>
+      {% elif item_type == 'measure' %}
+        <div class="mb-3"><label class="form-label fw-bold small">Metric *</label><input type="text" name="metric" class="form-control" value="{% if item %}{{ item.metric }}{% endif %}" required></div>
+        <div class="row g-3 mb-3">
+          <div class="col-md-6"><label class="form-label fw-bold small">Target</label><input type="number" step="any" name="target" class="form-control" value="{% if item and item.target != None %}{{ item.target }}{% endif %}"></div>
+          <div class="col-md-6"><label class="form-label fw-bold small">Current</label><input type="number" step="any" name="current" class="form-control" value="{% if item and item.current != None %}{{ item.current }}{% endif %}"></div>
+        </div>
+        <div class="mb-3"><label class="form-label fw-bold small">Notes</label><textarea name="notes" class="form-control" rows="3">{% if item %}{{ item.notes }}{% endif %}</textarea></div>
+      {% elif item_type == 'datapoint' %}
+        <div class="mb-3"><label class="form-label fw-bold small">Value *</label><input type="number" step="any" name="value" class="form-control" value="{% if item %}{{ item.value }}{% endif %}" required></div>
+        <div class="mb-3"><label class="form-label fw-bold small">Measured At</label><input type="datetime-local" name="measured_at" class="form-control" value="{% if item %}{{ item.measured_at }}{% endif %}"></div>
+        <div class="mb-3"><label class="form-label fw-bold small">Note</label><textarea name="note" class="form-control" rows="3">{% if item %}{{ item.note }}{% endif %}</textarea></div>
+      {% elif item_type == 'learning' %}
+        <div class="mb-3"><label class="form-label fw-bold small">Summary *</label><textarea name="summary" class="form-control" rows="3" required>{% if item %}{{ item.summary }}{% endif %}</textarea></div>
+        <div class="mb-3"><label class="form-label fw-bold small">Action</label><textarea name="action" class="form-control" rows="3">{% if item %}{{ item.action }}{% endif %}</textarea></div>
+      {% endif %}
+      <button type="submit" class="btn btn-primary"><i class="fas fa-save me-1"></i> Save</button>
+    </form>
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,53 @@
+{% extends "dashboard_layout.html" %}
+{% block title %}Analisis Solvabilitas - Ledger{% endblock %}
+
+{% block main_content %}
+<div class="d-flex justify-content-between align-items-center pb-2 mb-3 border-bottom">
+  <h1 class="h3 mb-0">Analisis Solvabilitas &amp; Likuiditas</h1>
+  <a href="/ledger/" class="btn btn-outline-secondary btn-sm">← Ledger</a>
+</div>
+
+<form method="get" class="card card-body border-0 shadow-sm mb-4">
+  <div class="row g-2 align-items-end">
+    <div class="col-md-3">
+      <label class="form-label small fw-bold">Mode</label>
+      <select name="mode" class="form-select form-select-sm" onchange="this.form.submit()">
+        <option value="period" {% if mode == 'period' %}selected{% endif %}>Per Periode Closed</option>
+        <option value="year" {% if mode == 'year' %}selected{% endif %}>Per Tahun</option>
+      </select>
+    </div>
+    {% if mode == 'period' %}
+    <div class="col-md-4">
+      <label class="form-label small fw-bold">Periode</label>
+      <select name="period" class="form-select form-select-sm" onchange="this.form.submit()">
+        {% for p in periods %}<option value="{{ p.period }}" {% if period == p.period %}selected{% endif %}>{{ p.period }}</option>{% endfor %}
+      </select>
+    </div>
+    {% else %}
+    <div class="col-md-4">
+      <label class="form-label small fw-bold">Tahun</label>
+      <input type="number" name="year" class="form-control form-control-sm" value="{{ year }}">
+    </div>
+    {% endif %}
+    <div class="col-md-2"><button type="submit" class="btn btn-primary btn-sm w-100">Hitung</button></div>
+  </div>
+</form>
+
+{% if error %}
+<div class="alert alert-warning">{{ error }}</div>
+{% else %}
+<div class="row g-3 mb-4">
+  <div class="col-md-2"><div class="card border-0 shadow-sm p-3"><div class="small text-muted">Current Ratio</div><div class="h4 fw-bold mb-0">{{ rasio_lancar }}</div></div></div>
+  <div class="col-md-2"><div class="card border-0 shadow-sm p-3"><div class="small text-muted">Quick Ratio</div><div class="h4 fw-bold mb-0">{{ rasio_cepat }}</div></div></div>
+  <div class="col-md-3"><div class="card border-0 shadow-sm p-3"><div class="small text-muted">Debt to Asset</div><div class="h4 fw-bold mb-0">{{ rasio_utang_aset }}</div></div></div>
+  <div class="col-md-3"><div class="card border-0 shadow-sm p-3"><div class="small text-muted">Debt to Equity</div><div class="h4 fw-bold mb-0">{{ rasio_utang_modal }}</div></div></div>
+  <div class="col-md-2"><div class="card border-0 shadow-sm p-3"><div class="small text-muted">Equity to Asset</div><div class="h4 fw-bold mb-0">{{ rasio_ekuitas_aset }}</div></div></div>
+</div>
+
+<div class="row g-3 small">
+  <div class="col-md-4"><div class="card border-0 shadow-sm p-3"><strong>Aset (Prefix 1): {{ aset_lancar }}</strong><ul class="mt-2 mb-0 ps-3">{% for a in aset_lancar_detail %}<li>{{ a.name }}: {{ a.balance }}</li>{% endfor %}</ul></div></div>
+  <div class="col-md-4"><div class="card border-0 shadow-sm p-3"><strong>Kewajiban (Prefix 2): {{ kewajiban_lancar }}</strong><ul class="mt-2 mb-0 ps-3">{% for k in kewajiban_detail %}<li>{{ k.name }}: {{ k.balance }}</li>{% endfor %}</ul></div></div>
+  <div class="col-md-4"><div class="card border-0 shadow-sm p-3"><strong>Ekuitas (Prefix 3): {{ ekuitas }}</strong><ul class="mt-2 mb-0 ps-3">{% for e in ekuitas_detail %}<li>{{ e.name }}: {{ e.balance }}</li>{% endfor %}</ul></div></div>
+</div>
+{% endif %}
+{% endblock %}

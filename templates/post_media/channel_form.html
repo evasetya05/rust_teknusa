@@ -1,0 +1,58 @@
+{% extends "dashboard_layout.html" %}
+{% block title %}{{ title }}{% endblock %}
+
+{% block main_content %}
+<div class="d-flex justify-content-between align-items-center pb-2 mb-3 border-bottom">
+  <h1 class="h3 mb-0">{{ title }}</h1>
+  <a href="/post_media/" class="btn btn-outline-secondary btn-sm">← Kembali</a>
+</div>
+
+<div class="card border-0 shadow-sm">
+  <div class="card-body p-4">
+    <form method="post">
+      <div class="row g-3">
+        <div class="col-md-4"><label class="form-label small fw-bold">Akun</label>
+          <select name="akun" class="form-select"><option value="">--</option>{% for a in akuns %}<option value="{{ a.id }}" {% if channel and channel.akun_id == a.id %}selected{% endif %}>{{ a.name }}</option>{% endfor %}</select>
+        </div>
+        <div class="col-md-4"><label class="form-label small fw-bold">Market</label>
+          <select name="for_market" class="form-select"><option value="">--</option>{% for m in markets %}<option value="{{ m.id }}" {% if channel and channel.for_market_id == m.id %}selected{% endif %}>{{ m.name }}</option>{% endfor %}</select>
+        </div>
+        <div class="col-md-4"><label class="form-label small fw-bold">Digital Channel</label>
+          <select name="channel" class="form-select"><option value="">--</option>{% for dc in digital_channels %}<option value="{{ dc.id }}" {% if channel and channel.channel_id == dc.id %}selected{% endif %}>{{ dc.name }}</option>{% endfor %}</select>
+        </div>
+        <div class="col-md-4"><label class="form-label small fw-bold">Funnel Stage</label>
+          <select name="funnel_stage" class="form-select"><option value="">--</option>{% for f in funnel_stages %}<option value="{{ f.id }}" {% if channel and channel.funnel_stage_id == f.id %}selected{% endif %}>{{ f.name }}</option>{% endfor %}</select>
+        </div>
+        <div class="col-md-4"><label class="form-label small fw-bold">Kategori Biaya</label>
+          <select name="kategori_biaya" class="form-select"><option value="">--</option>{% for b in biayas %}<option value="{{ b.id }}" {% if channel and channel.kategori_biaya_id == b.id %}selected{% endif %}>{{ b.name }}</option>{% endfor %}</select>
+        </div>
+        <div class="col-md-4"><label class="form-label small fw-bold">Nilai Biaya (Rp)</label>
+          <input type="number" step="0.01" name="amount" class="form-control" value="{% if channel %}{{ channel.amount }}{% endif %}">
+        </div>
+        <div class="col-md-4"><label class="form-label small fw-bold">Rencana Tanggal Posting</label>
+          <input type="date" name="rencana_tanggal_posting" class="form-control" value="{% if channel %}{{ channel.rencana_tanggal_posting }}{% endif %}">
+        </div>
+        <div class="col-md-4"><label class="form-label small fw-bold">Tanggal Posting Aktual</label>
+          <input type="datetime-local" name="tanggal_posting" class="form-control" value="{% if channel %}{{ channel.tanggal_posting }}{% endif %}">
+        </div>
+        <div class="col-md-4 d-flex align-items-end">
+          <div class="form-check form-switch mb-2"><input type="checkbox" class="form-check-input" id="id_posted" name="is_posted" {% if channel and channel.is_posted %}checked{% endif %}><label class="form-check-label fw-bold" for="id_posted">Sudah Diposting</label></div>
+        </div>
+        <div class="col-md-6"><label class="form-label small fw-bold">Jenis Konten</label>
+          <input type="text" name="jenis_konten" class="form-control" value="{% if channel %}{{ channel.jenis_konten }}{% endif %}" required>
+        </div>
+        <div class="col-md-6"><label class="form-label small fw-bold">Judul *</label>
+          <input type="text" name="judul" class="form-control" value="{% if channel %}{{ channel.judul }}{% endif %}" required>
+        </div>
+        <div class="col-12"><label class="form-label small fw-bold">Isi Konten</label>
+          <textarea name="isi_konten" class="form-control" rows="5">{% if channel %}{{ channel.isi_konten }}{% endif %}</textarea>
+        </div>
+      </div>
+      <div class="mt-4 d-flex justify-content-end gap-2">
+        <a href="/post_media/" class="btn btn-light">Batal</a>
+        <button type="submit" class="btn btn-primary"><i class="fas fa-save me-1"></i> Simpan</button>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,123 @@
+{% extends "dashboard_layout.html" %}
+{% block title %}{{ object.title }} - Lean{% endblock %}
+
+{% block main_content %}
+<div class="d-flex justify-content-between align-items-start pb-2 mb-3 border-bottom">
+  <div>
+    <h1 class="h3 mb-1">{{ object.title }}</h1>
+    <span class="badge bg-primary">{{ object.status }}</span>
+    <span class="badge bg-light text-dark border">Priority: {{ object.priority }}</span>
+  </div>
+  <div class="d-flex gap-2">
+    <a href="/lean/idea/{{ object.id }}/edit/" class="btn btn-primary btn-sm">✏️ Edit Idea</a>
+    <a href="/lean/" class="btn btn-outline-secondary btn-sm">← Back to List</a>
+  </div>
+</div>
+
+<div class="card border-0 shadow-sm mb-4">
+  <div class="card-body">
+    <p class="mb-2">{{ object.description | default(value="-") }}</p>
+    {% if object.assumptions %}
+    <div class="small text-muted"><strong>Assumptions:</strong> {{ object.assumptions }}</div>
+    {% endif %}
+  </div>
+</div>
+
+<!-- Builds -> Products -> Measures -> DataPoints -->
+<div class="d-flex justify-content-between align-items-center mb-2">
+  <h3 class="h5 mb-0">Builds &amp; Experiments</h3>
+</div>
+
+<form method="post" action="/lean/idea/{{ object.id }}/build/add/" class="card card-body border-0 shadow-sm mb-3 bg-light">
+  <div class="row g-2 align-items-end">
+    <div class="col-md-4"><input type="text" name="title" class="form-control form-control-sm" placeholder="Judul Build baru..." required></div>
+    <div class="col-md-4"><input type="text" name="link" class="form-control form-control-sm" placeholder="Link (opsional)"></div>
+    <div class="col-md-2">
+      <select name="status" class="form-select form-select-sm">
+        {% for st in status_choices %}<option value="{{ st.value }}">{{ st.label }}</option>{% endfor %}
+      </select>
+    </div>
+    <div class="col-md-2"><button type="submit" class="btn btn-primary btn-sm w-100">+ Build</button></div>
+  </div>
+</form>
+
+{% for build in builds %}
+<div class="card border-0 shadow-sm mb-3">
+  <div class="card-header bg-white d-flex justify-content-between align-items-center">
+    <div>
+      <strong>{{ build.title }}</strong> <span class="badge bg-light text-dark border ms-1">{{ build.status }}</span>
+      {% if build.link %}<a href="{{ build.link }}" target="_blank" class="small ms-2">{{ build.link }}</a>{% endif %}
+    </div>
+    <a href="/lean/build/{{ build.id }}/edit/" class="btn btn-sm btn-outline-secondary py-0">Edit</a>
+  </div>
+  <div class="card-body">
+    {% if build.description %}<p class="small text-muted">{{ build.description }}</p>{% endif %}
+
+    <form method="post" action="/lean/build/{{ build.id }}/product/add/" class="row g-2 mb-3">
+      <div class="col-md-5"><input type="text" name="name" class="form-control form-control-sm" placeholder="Tambah Product..." required></div>
+      <div class="col-md-5"><input type="text" name="description" class="form-control form-control-sm" placeholder="Deskripsi"></div>
+      <div class="col-md-2"><button type="submit" class="btn btn-outline-primary btn-sm w-100">+ Product</button></div>
+    </form>
+
+    {% for p in build.products %}
+    <div class="border rounded p-2 mb-2 bg-light">
+      <div class="d-flex justify-content-between align-items-center mb-1">
+        <strong>Product: {{ p.name }}</strong>
+        <a href="/lean/product/{{ p.id }}/edit/" class="btn btn-xs btn-outline-secondary py-0 px-2 small">Edit</a>
+      </div>
+      <form method="post" action="/lean/product/{{ p.id }}/measure/add/" class="row g-1 mb-2">
+        <div class="col-md-4"><input type="text" name="metric" class="form-control form-control-sm" placeholder="Metric..." required></div>
+        <div class="col-md-3"><input type="number" step="any" name="target" class="form-control form-control-sm" placeholder="Target"></div>
+        <div class="col-md-3"><input type="number" step="any" name="current" class="form-control form-control-sm" placeholder="Current"></div>
+        <div class="col-md-2"><button type="submit" class="btn btn-outline-success btn-sm w-100">+ Measure</button></div>
+      </form>
+      {% for m in p.measures %}
+      <div class="bg-white border rounded p-2 mb-1 small">
+        <div class="d-flex justify-content-between">
+          <span><strong>{{ m.metric }}</strong> (Target: {{ m.target | default(value="-") }}, Current: {{ m.current | default(value="-") }})</span>
+          <a href="/lean/measure/{{ m.id }}/edit/" class="text-decoration-none">Edit</a>
+        </div>
+        <form method="post" action="/lean/measure/{{ m.id }}/datapoint/add/" class="row g-1 mt-1">
+          <div class="col-md-3"><input type="number" step="any" name="value" class="form-control form-control-sm" placeholder="Nilai" required></div>
+          <div class="col-md-7"><input type="text" name="note" class="form-control form-control-sm" placeholder="Catatan datapoint..."></div>
+          <div class="col-md-2"><button type="submit" class="btn btn-outline-dark btn-sm w-100">+ Data</button></div>
+        </form>
+        {% for d in m.datapoints %}
+        <div class="text-muted mt-1 d-flex justify-content-between">
+          <span>• <strong>{{ d.value }}</strong> ({{ d.measured_at }}) — {{ d.note }}</span>
+          <a href="/lean/datapoint/{{ d.id }}/edit/">Edit</a>
+        </div>
+        {% endfor %}
+      </div>
+      {% endfor %}
+    </div>
+    {% endfor %}
+  </div>
+</div>
+{% else %}
+<p class="text-muted small">No builds yet.</p>
+{% endfor %}
+
+<hr>
+<h3 class="h5 mb-2">Learnings</h3>
+<form method="post" action="/lean/idea/{{ object.id }}/learning/add/" class="card card-body border-0 shadow-sm mb-3 bg-light">
+  <div class="row g-2">
+    <div class="col-md-5"><input type="text" name="summary" class="form-control form-control-sm" placeholder="Ringkasan pembelajaran..." required></div>
+    <div class="col-md-5"><input type="text" name="action" class="form-control form-control-sm" placeholder="Next action / experiment..."></div>
+    <div class="col-md-2"><button type="submit" class="btn btn-primary btn-sm w-100">+ Learning</button></div>
+  </div>
+</form>
+{% for l in learnings %}
+<div class="card border-0 shadow-sm mb-2">
+  <div class="card-body py-2 d-flex justify-content-between align-items-center small">
+    <div>
+      <div>{{ l.summary }}</div>
+      {% if l.action %}<div class="text-muted">Action: {{ l.action }}</div>{% endif %}
+    </div>
+    <a href="/lean/learning/{{ l.id }}/edit/" class="btn btn-sm btn-outline-secondary py-0">Edit</a>
+  </div>
+</div>
+{% else %}
+<p class="text-muted small">No learnings yet.</p>
+{% endfor %}
+{% endblock %}

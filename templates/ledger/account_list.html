@@ -1,0 +1,41 @@
+{% extends "dashboard_layout.html" %}
+{% block title %}Daftar Akun - Ledger{% endblock %}
+
+{% block main_content %}
+<div class="d-flex justify-content-between align-items-center pb-2 mb-3 border-bottom">
+  <h1 class="h3 mb-0">Daftar Akun (Chart of Accounts)</h1>
+  <div class="d-flex gap-2">
+    <a href="/ledger/accounts/accounts/new/" class="btn btn-success btn-sm"><i class="fas fa-plus me-1"></i> Tambah Akun</a>
+    <a href="/ledger/" class="btn btn-outline-secondary btn-sm">← Ledger</a>
+  </div>
+</div>
+
+<div class="card border-0 shadow-sm">
+  <div class="table-responsive">
+    <table class="table table-hover align-middle mb-0 small">
+      <thead class="table-light">
+        <tr>
+          <th class="ps-3">Nama Akun</th>
+          <th>Tipe</th>
+          <th>CoA</th>
+          <th>Saldo Normal</th>
+          <th>Status</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for acc in accounts %}
+        <tr>
+          <td class="ps-3 fw-semibold">{{ acc.account_name }}</td>
+          <td><span class="badge bg-light text-dark border">{{ acc.account_type }}</span></td>
+          <td>{{ acc.coa }}</td>
+          <td>{{ acc.balance_type }}</td>
+          <td>{% if acc.active %}<span class="badge bg-success">Aktif</span>{% else %}<span class="badge bg-secondary">Non-Aktif</span>{% endif %}</td>
+        </tr>
+        {% else %}
+        <tr><td colspan="5" class="text-center py-4 text-muted">Belum ada akun.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

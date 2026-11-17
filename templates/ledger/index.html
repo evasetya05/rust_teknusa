@@ -1,0 +1,63 @@
+{% extends "dashboard_layout.html" %}
+{% block title %}Dashboard Pembukuan{% endblock %}
+
+{% block main_content %}
+<div class="row g-3">
+  <div class="col-12">
+    <div class="card border-0 shadow-sm" style="background: linear-gradient(135deg, rgba(13, 110, 253, 0.12), rgba(111, 66, 193, 0.08)); border-radius: 1rem;">
+      <div class="card-body p-4 d-flex justify-content-between align-items-center flex-wrap gap-2">
+        <div>
+          <h1 class="h3 mb-1 fw-bold">Sistem Pembukuan (Ledger)</h1>
+          <p class="text-muted small mb-0">Kelola jurnal, Chart of Accounts, closing period, dan laporan keuangan real-time.</p>
+        </div>
+        <a href="/ledger/dimensions/" class="btn btn-outline-primary btn-sm"><i class="fas fa-tags me-1"></i> Kelola Dimensi</a>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-xl-4 col-lg-6">
+    <div class="card border-0 shadow-sm h-100" style="border-radius: 1rem;">
+      <div class="card-body">
+        <h5 class="card-title fw-bold mb-1"><i class="fas fa-book-open text-primary me-2"></i>Manajemen Jurnal</h5>
+        <p class="text-muted small mb-3">Catat dan review transaksi harian.</p>
+        <div class="d-grid gap-2">
+          <a href="/ledger/journal/journal/create/" class="btn btn-primary"><i class="fas fa-plus me-1"></i> Buat Jurnal Baru</a>
+          <a href="/ledger/journal/journal/list/" class="btn btn-outline-primary"><i class="fas fa-list-ul me-1"></i> Daftar Jurnal</a>
+          <a href="/ledger/closing/closing-periods/" class="btn btn-outline-primary"><i class="fas fa-calendar-check me-1"></i> Closing Period</a>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-xl-4 col-lg-6">
+    <div class="card border-0 shadow-sm h-100" style="border-radius: 1rem;">
+      <div class="card-body">
+        <h5 class="card-title fw-bold mb-1"><i class="fas fa-layer-group text-success me-2"></i>Pengaturan Akun</h5>
+        <p class="text-muted small mb-3">Kelola struktur akun &amp; dimensi.</p>
+        <div class="d-grid gap-2">
+          <a href="/ledger/accounts/accounts/new/" class="btn btn-success"><i class="fas fa-folder-plus me-1"></i> Tambah Akun</a>
+          <a href="/ledger/accounts/accounts/" class="btn btn-outline-success"><i class="fas fa-folder-open me-1"></i> Semua Akun</a>
+          <a href="/ledger/dimensions/" class="btn btn-outline-secondary"><i class="fas fa-tags me-1"></i> Master Dimensi</a>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-xl-4">
+    <div class="card border-0 shadow-sm h-100" style="border-radius: 1rem;">
+      <div class="card-body">
+        <h5 class="card-title fw-bold mb-1"><i class="fas fa-chart-line text-warning me-2"></i>Laporan &amp; Analitik</h5>
+        <p class="text-muted small mb-3">Pantau performa keuangan secara real-time.</p>
+        <ul class="list-group list-group-flush small">
+          <li class="list-group-item px-0"><a href="/ledger/report/report/" class="text-decoration-none text-dark"><i class="fas fa-book me-2 text-primary"></i>Laporan Buku Besar</a></li>
+          <li class="list-group-item px-0"><a href="/ledger/accounts/ledger/report/balance-sheet/" class="text-decoration-none text-dark"><i class="fas fa-balance-scale me-2 text-success"></i>Neraca Saldo (Balance Sheet)</a></li>
+          <li class="list-group-item px-0"><a href="/ledger/report/report/profit-loss/" class="text-decoration-none text-dark"><i class="fas fa-file-invoice-dollar me-2 text-danger"></i>Laporan Laba Rugi</a></li>
+          <li class="list-group-item px-0"><a href="/ledger/report/dimension-analysis/" class="text-decoration-none text-dark"><i class="fas fa-tags me-2" style="color: #6f42c1;"></i>Laporan Analisis Dimensi</a></li>
+          <li class="list-group-item px-0"><a href="/ledger/solvabilitas/solvabilitas/" class="text-decoration-none text-dark"><i class="fas fa-chart-pie me-2 text-info"></i>Analisis Solvabilitas</a></li>
+          <li class="list-group-item px-0"><a href="/ledger/profitabilitas/profitabilitas/" class="text-decoration-none text-dark"><i class="fas fa-chart-bar me-2 text-warning"></i>Analisis Profitabilitas</a></li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

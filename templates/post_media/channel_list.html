@@ -1,0 +1,63 @@
+{% extends "dashboard_layout.html" %}
+{% block title %}Post Media - Daftar Konten{% endblock %}
+
+{% block main_content %}
+<div class="d-flex flex-wrap justify-content-between align-items-center pb-2 mb-3 border-bottom gap-2">
+  <h1 class="h2 mb-0"><i class="fas fa-photo-video text-primary me-2"></i>Post Media</h1>
+  <div class="d-flex flex-wrap gap-2">
+    <a href="/post_media/add/" class="btn btn-primary btn-sm"><i class="fas fa-plus me-1"></i> Tambah Konten</a>
+    <a href="/post_media/analytics/" class="btn btn-outline-info btn-sm"><i class="fas fa-chart-bar me-1"></i> Analitik</a>
+    <a href="/post_media/ide-konten/" class="btn btn-outline-success btn-sm"><i class="fas fa-magic me-1"></i> Generate Ide Konten AI</a>
+  </div>
+</div>
+
+<form method="get" class="row g-2 mb-4 align-items-center">
+  <div class="col-auto">
+    <select name="market" class="form-select form-select-sm" onchange="this.form.submit()">
+      <option value="">-- Semua Market --</option>
+      {% for m in markets %}<option value="{{ m.name }}" {% if selected_market == m.name %}selected{% endif %}>{{ m.name }}</option>{% endfor %}
+    </select>
+  </div>
+  <div class="col-auto">
+    <select name="channel" class="form-select form-select-sm" onchange="this.form.submit()">
+      <option value="">-- Semua Channel --</option>
+      {% for dc in digital_channels %}<option value="{{ dc.name }}" {% if selected_channel == dc.name %}selected{% endif %}>{{ dc.name }}</option>{% endfor %}
+    </select>
+  </div>
+</form>
+
+{% for mc in market_channels %}
+<div class="card border-0 shadow-sm mb-4">
+  <div class="card-header bg-dark text-white fw-bold">{{ mc.market.name }}</div>
+  <div class="card-body">
+    {% for grp in mc.groups %}
+    <h6 class="fw-bold text-primary mt-2">{{ grp.channel_name }}</h6>
+    <div class="table-responsive mb-3">
+      <table class="table table-sm table-hover align-middle small">
+        <thead class="table-light">
+          <tr><th>Judul</th><th>Jenis Konten</th><th>Rencana</th><th>Posting</th><th>Status</th><th class="text-end">Aksi</th></tr>
+        </thead>
+        <tbody>
+          {% for ch in grp.channels %}
+          <tr>
+            <td><a href="/post_media/channel/{{ ch.id }}/" class="fw-semibold text-decoration-none">{{ ch.judul }}</a></td>
+            <td>{{ ch.jenis_konten }}</td>
+            <td>{{ ch.rencana_tanggal_posting | default(value="-") }}</td>
+            <td>{{ ch.tanggal_posting | default(value="-") }}</td>
+            <td>{% if ch.is_posted %}<span class="badge bg-success">Posted</span>{% else %}<span class="badge bg-warning text-dark">Planned</span>{% endif %}</td>
+            <td class="text-end">
+              <a href="/post_media/channel/{{ ch.id }}/" class="btn btn-xs btn-outline-primary py-0 px-2">Detail</a>
+              <a href="/post_media/edit/{{ ch.id }}/" class="btn btn-xs btn-outline-secondary py-0 px-2">Edit</a>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% endfor %}
+  </div>
+</div>
+{% else %}
+<div class="alert alert-light border text-center py-4 text-muted">Belum ada konten channel.</div>
+{% endfor %}
+{% endblock %}

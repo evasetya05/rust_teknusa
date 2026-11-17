@@ -1,0 +1,113 @@
+{% extends "dashboard_layout.html" %}
+{% block title %}Tambah Jurnal - Ledger{% endblock %}
+
+{% block main_content %}
+<div class="d-flex justify-content-between align-items-center pb-2 mb-3 border-bottom">
+  <h1 class="h3 mb-0">Buat Jurnal Baru</h1>
+  <a href="/ledger/journal/journal/list/" class="btn btn-outline-secondary btn-sm">← Daftar Jurnal</a>
+</div>
+
+<form method="post" class="card border-0 shadow-sm p-4">
+  <div class="row g-3 mb-4 bg-light p-3 rounded border">
+    <div class="col-md-4">
+      <label class="form-label small fw-bold">Tanggal *</label>
+      <input type="date" name="date" class="form-control" value="{{ today }}" required>
+    </div>
+    <div class="col-md-8">
+      <label class="form-label small fw-bold">Deskripsi *</label>
+      <input type="text" name="description" class="form-control" placeholder="Keterangan transaksi jurnal..." required>
+    </div>
+  </div>
+
+  <div class="table-responsive">
+    <table class="table table-bordered align-middle small" id="entries-table">
+      <thead class="table-light">
+        <tr>
+          <th style="min-width:200px;">Akun</th>
+          <th style="width:130px;">Debit</th>
+          <th style="width:130px;">Credit</th>
+          <th>Catatan</th>
+          <th style="min-width:220px;">Dimensi (CC / PC / Project / dll)</th>
+          <th style="width:50px;"></th>
+        </tr>
+      </thead>
+      <tbody id="journal-rows">
+        <tr class="entry-row">
+          <td>
+            <select name="account_id[]" class="form-select form-select-sm" required>
+              <option value="">-- Pilih Akun --</option>
+              {% for acc in accounts %}<option value="{{ acc.id }}">{{ acc.account_name }}</option>{% endfor %}
+            </select>
+          </td>
+          <td><input type="number" name="debit[]" class="form-control form-control-sm debit-input" value="0" min="0" oninput="recalcTotals()"></td>
+          <td><input type="number" name="credit[]" class="form-control form-control-sm credit-input" value="0" min="0" oninput="recalcTotals()"></td>
+          <td><input type="text" name="note[]" class="form-control form-control-sm" placeholder="Note"></td>
+          <td>
+            <details>
+              <summary class="small text-primary" style="cursor:pointer;">Pilih Dimensi</summary>
+              <div class="mt-1 d-grid gap-1">
+                <select name="cost_center_id[]" class="form-select form-select-sm"><option value="">Cost Center: -</option>{% for d in cost_centers %}<option value="{{ d.id }}">{{ d.code }} - {{ d.name }}</option>{% endfor %}</select>
+                <select name="profit_center_id[]" class="form-select form-select-sm"><option value="">Profit Center: -</option>{% for d in profit_centers %}<option value="{{ d.id }}">{{ d.code }} - {{ d.name }}</option>{% endfor %}</select>
+                <select name="project_id[]" class="form-select form-select-sm"><option value="">Project: -</option>{% for d in projects %}<option value="{{ d.id }}">{{ d.code }} - {{ d.name }}</option>{% endfor %}</select>
+                <select name="activity_id[]" class="form-select form-select-sm"><option value="">Activity: -</option>{% for d in activities %}<option value="{{ d.id }}">{{ d.code }} - {{ d.name }}</option>{% endfor %}</select>
+                <select name="location_id[]" class="form-select form-select-sm"><option value="">Location: -</option>{% for d in locations %}<option value="{{ d.id }}">{{ d.code }} - {{ d.name }}</option>{% endfor %}</select>
+                <select name="partner_id[]" class="form-select form-select-sm"><option value="">Partner: -</option>{% for d in partners %}<option value="{{ d.id }}">{{ d.code }} - {{ d.name }}</option>{% endfor %}</select>
+                <select name="product_id[]" class="form-select form-select-sm"><option value="">Product: -</option>{% for d in products %}<option value="{{ d.id }}">{{ d.code }} - {{ d.name }}</option>{% endfor %}</select>
+              </div>
+            </details>
+          </td>
+          <td><button type="button" class="btn btn-sm btn-outline-danger" onclick="removeRow(this)">×</button></td>
+        </tr>
+      </tbody>
+      <tfoot>
+        <tr class="table-light fw-bold">
+          <td class="text-end">Total</td>
+          <td id="sum-debit" class="font-monospace">0</td>
+          <td id="sum-credit" class="font-monospace">0</td>
+          <td colspan="3" id="balance-indicator" class="text-success">Balanced</td>
+        </tr>
+      </tfoot>
+    </table>
+  </div>
+
+  <div class="d-flex justify-content-between mt-3">
+    <button type="button" class="btn btn-outline-primary btn-sm" onclick="addRow()"><i class="fas fa-plus me-1"></i> Tambah Baris</button>
+    <button type="submit" class="btn btn-success"><i class="fas fa-save me-1"></i> Simpan Jurnal</button>
+  </div>
+</form>
+{% endblock %}
+
+{% block page_js %}
+<script>
+function addRow() {
+  var tbody = document.getElementById('journal-rows');
+  var tpl = tbody.querySelector('.entry-row').cloneNode(true);
+  tpl.querySelectorAll('input').forEach(i => i.value = i.type === 'number' ? '0' : '');
+  tpl.querySelectorAll('select').forEach(s => s.selectedIndex = 0);
+  tbody.appendChild(tpl);
+  recalcTotals();
+}
+function removeRow(btn) {
+  var rows = document.querySelectorAll('.entry-row');
+  if (rows.length > 1) {
+    btn.closest('tr').remove();
+    recalcTotals();
+  }
+}
+function recalcTotals() {
+  var d = 0, c = 0;
+  document.querySelectorAll('.debit-input').forEach(el => d += Number(el.value || 0));
+  document.querySelectorAll('.credit-input').forEach(el => c += Number(el.value || 0));
+  document.getElementById('sum-debit').textContent = d.toLocaleString();
+  document.getElementById('sum-credit').textContent = c.toLocaleString();
+  var ind = document.getElementById('balance-indicator');
+  if (d === c) {
+    ind.textContent = 'Balanced';
+    ind.className = 'text-success';
+  } else {
+    ind.textContent = 'Selisih: ' + Math.abs(d - c).toLocaleString();
+    ind.className = 'text-danger';
+  }
+}
+</script>
+{% endblock %}

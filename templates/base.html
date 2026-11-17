@@ -1,0 +1,253 @@
+<!doctype html>
+<html lang="id">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>{% block title %}Dashboard{% endblock %} - Teknusa ERP</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    body { font-family: 'Inter', sans-serif; background-color: #f4f6fb; color: #1e293b; }
+    .main-navbar {
+      background: linear-gradient(135deg, #0f172a 0%, #1e3a5f 100%);
+      box-shadow: 0 2px 12px rgba(0,0,0,0.3);
+      padding: 0.5rem 1rem;
+    }
+    .main-navbar .navbar-brand {
+      font-weight: 700;
+      font-size: 1.2rem;
+      color: #fff !important;
+      letter-spacing: -0.3px;
+    }
+    .main-navbar .navbar-brand span { color: #38bdf8; }
+    .main-navbar .nav-link {
+      color: rgba(255,255,255,0.78) !important;
+      font-size: 0.875rem;
+      font-weight: 500;
+      transition: color 0.2s ease;
+    }
+    .main-navbar .nav-link:hover { color: #fff !important; }
+    .entity-switcher-btn {
+      background: rgba(255,255,255,0.1);
+      border: 1px solid rgba(255,255,255,0.2);
+      color: #fff;
+      border-radius: 20px;
+      padding: 4px 14px;
+      font-size: 0.82rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      text-decoration: none;
+    }
+    .entity-switcher-btn:hover {
+      background: rgba(56,189,248,0.25);
+      border-color: #38bdf8;
+      color: #fff;
+    }
+    .entity-switcher-btn .dot {
+      width: 8px; height: 8px;
+      border-radius: 50%;
+      background: #22c55e;
+      flex-shrink: 0;
+    }
+    .entity-switcher-btn .dot.all { background: #f59e0b; }
+    .entity-dropdown .dropdown-menu {
+      min-width: 240px;
+      border-radius: 12px;
+      border: none;
+      box-shadow: 0 12px 40px rgba(0,0,0,0.18);
+      padding: 8px;
+      margin-top: 8px;
+    }
+    .entity-dropdown .dropdown-header {
+      font-size: 0.72rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: #94a3b8;
+      padding: 4px 8px 8px;
+    }
+    .entity-dropdown .entity-item {
+      border-radius: 8px;
+      padding: 8px 10px;
+      font-size: 0.875rem;
+      font-weight: 500;
+      color: #1e293b;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      border: none;
+      width: 100%;
+      background: none;
+      text-align: left;
+      transition: background 0.15s ease;
+      text-decoration: none;
+    }
+    .entity-dropdown .entity-item:hover { background: #f1f5f9; }
+    .entity-dropdown .entity-item.active {
+      background: #eff6ff;
+      color: #2563eb;
+      font-weight: 600;
+    }
+    .entity-item .entity-logo {
+      width: 28px; height: 28px;
+      border-radius: 6px;
+      object-fit: cover;
+      background: #e2e8f0;
+      display: flex; align-items: center; justify-content: center;
+      font-weight: 700; font-size: 11px; color: #475569;
+      flex-shrink: 0;
+    }
+    .entity-item .entity-logo img { width: 100%; height: 100%; border-radius: 6px; object-fit: cover; }
+  </style>
+  {% block extra_css %}{% endblock %}
+</head>
+<body>
+  <nav class="navbar navbar-expand-lg main-navbar">
+    <div class="container-fluid px-3">
+      <a class="navbar-brand" href="/dashboard/">Teknusa<span>ERP</span></a>
+
+      <button class="navbar-toggler border-0 text-white" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+        <i class="fas fa-bars"></i>
+      </button>
+
+      <div class="collapse navbar-collapse" id="navbarNav">
+        {% if user.is_authenticated %}
+        <ul class="navbar-nav me-auto">
+          <li class="nav-item">
+            <a class="nav-link" href="/leads/"><i class="fas fa-user-plus me-1"></i>Leads</a>
+          </li>
+          <li class="nav-item">
+            <a class="nav-link" href="/lean/"><i class="fas fa-stream me-1"></i>Lean</a>
+          </li>
+          <li class="nav-item">
+            <a class="nav-link" href="/ledger/"><i class="fas fa-book me-1"></i>Ledger</a>
+          </li>
+          <li class="nav-item">
+            <a class="nav-link" href="/kanban/"><i class="fas fa-columns me-1"></i>Kanban</a>
+          </li>
+          <li class="nav-item">
+            <a class="nav-link" href="/gantt/"><i class="fas fa-chart-gantt me-1"></i>Gantt</a>
+          </li>
+          <li class="nav-item">
+            <a class="nav-link" href="/post_media/"><i class="fas fa-photo-video me-1"></i>Post Media</a>
+          </li>
+          {% if user.is_admin %}
+          <li class="nav-item">
+            <a class="nav-link" href="/agent/briefing/"><i class="fas fa-robot me-1"></i>Agent</a>
+          </li>
+          {% endif %}
+        </ul>
+        {% else %}
+        <ul class="navbar-nav me-auto"></ul>
+        {% endif %}
+
+        <div class="d-flex align-items-center gap-3">
+          {% if user.is_authenticated %}
+          <div class="entity-dropdown dropdown" id="entity-switcher">
+            <a href="#" class="entity-switcher-btn" data-bs-toggle="dropdown" aria-expanded="false">
+              <span class="dot {% if not current_entity %}all{% endif %}"></span>
+              <i class="fas fa-building me-1" style="font-size: 0.8rem; opacity: 0.7;"></i>
+              {% if current_entity %}{{ current_entity.name }}{% else %}Semua Perusahaan{% endif %}
+              <i class="fas fa-chevron-down" style="font-size: 0.65rem; opacity: 0.7;"></i>
+            </a>
+            <ul class="dropdown-menu dropdown-menu-end">
+              <li><span class="dropdown-header"><i class="fas fa-building me-1"></i>Pilih Perusahaan</span></li>
+              <li>
+                <form method="post" action="/entity/select/">
+                  <input type="hidden" name="entity_id" value="all">
+                  <button type="submit" class="entity-item {% if not current_entity %}active{% endif %}">
+                    <span class="entity-logo">🌐</span>
+                    <span>Semua Perusahaan</span>
+                    {% if not current_entity %}<i class="fas fa-check ms-auto text-primary" style="font-size: 0.75rem;"></i>{% endif %}
+                  </button>
+                </form>
+              </li>
+              {% if entities %}
+              <li><hr class="dropdown-divider my-1"></li>
+              {% for ent in entities %}
+              <li>
+                <form method="post" action="/entity/select/">
+                  <input type="hidden" name="entity_id" value="{{ ent.id }}">
+                  <button type="submit" class="entity-item {% if current_entity and current_entity.id == ent.id %}active{% endif %}">
+                    <span class="entity-logo">
+                      {% if ent.logo_url %}
+                        <img src="{{ ent.logo_url }}" alt="{{ ent.name }}">
+                      {% else %}
+                        {{ ent.initials }}
+                      {% endif %}
+                    </span>
+                    <span>{{ ent.name }}</span>
+                    {% if current_entity and current_entity.id == ent.id %}<i class="fas fa-check ms-auto text-primary" style="font-size: 0.75rem;"></i>{% endif %}
+                  </button>
+                </form>
+              </li>
+              {% endfor %}
+              {% endif %}
+              <li><hr class="dropdown-divider my-1"></li>
+              <li>
+                <a href="/entity/" class="entity-item" style="color: #2563eb;">
+                  <span class="entity-logo" style="background:#eff6ff; color:#2563eb;">+</span>
+                  <span>Kelola Perusahaan</span>
+                </a>
+              </li>
+            </ul>
+          </div>
+
+          <div class="dropdown">
+            <a href="#" class="entity-switcher-btn" data-bs-toggle="dropdown">
+              <i class="fas fa-user-circle" style="font-size: 0.9rem;"></i>
+              {{ user.full_name | default(value=user.username) }}
+            </a>
+            <ul class="dropdown-menu dropdown-menu-end" style="border-radius:12px; min-width:180px; box-shadow: 0 12px 40px rgba(0,0,0,0.18); border:none; padding:8px;">
+              <li><a class="dropdown-item rounded-2" href="/dashboard/"><i class="fas fa-tachometer-alt me-2 text-muted"></i>Dashboard</a></li>
+              <li><hr class="dropdown-divider"></li>
+              <li><a class="dropdown-item rounded-2 text-danger" href="/logout/"><i class="fas fa-sign-out-alt me-2"></i>Logout</a></li>
+            </ul>
+          </div>
+          {% else %}
+          <a href="/login/" class="entity-switcher-btn"><i class="fas fa-sign-in-alt"></i> Login</a>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+  </nav>
+
+  {% if messages %}
+  <div class="position-fixed top-0 end-0 p-3" style="z-index: 1100; margin-top: 60px;">
+    {% for message in messages %}
+    <div class="toast show align-items-center text-white border-0 mb-2
+        {% if message.level == 'success' %}bg-success
+        {% elif message.level == 'error' or message.level == 'danger' %}bg-danger
+        {% elif message.level == 'warning' %}bg-warning text-dark
+        {% else %}bg-info{% endif %}"
+        role="alert">
+      <div class="d-flex">
+        <div class="toast-body">{{ message.text }}</div>
+        <button type="button" class="btn-close {% if message.level != 'warning' %}btn-close-white{% endif %} me-2 m-auto" data-bs-dismiss="toast"></button>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+  {% endif %}
+
+  <main class="container-fluid mt-3 px-4 pb-5">
+    {% block content %}{% endblock %}
+  </main>
+
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+  <script>
+    document.querySelectorAll('.toast').forEach(el => {
+      setTimeout(() => { el.classList.remove('show'); }, 4500);
+    });
+  </script>
+  {% block extra_js %}{% endblock %}
+</body>
+</html>

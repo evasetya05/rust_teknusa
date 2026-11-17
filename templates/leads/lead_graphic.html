@@ -1,0 +1,40 @@
+{% extends "dashboard_layout.html" %}
+{% block title %}Grafik Leads{% endblock %}
+
+{% block main_content %}
+<div class="d-flex justify-content-between align-items-center pb-2 mb-4 border-bottom">
+  <h1 class="h2 mb-0"><i class="fas fa-chart-line text-success me-2"></i>Grafik Leads (14 Hari Terakhir)</h1>
+  <a href="/leads/" class="btn btn-outline-secondary btn-sm">← Daftar Leads</a>
+</div>
+
+<div class="row g-3 mb-4">
+  <div class="col-md-4"><div class="card border-0 shadow-sm p-3"><div class="small text-muted">Total Leads</div><div class="h4 fw-bold mb-0">{{ metrics.total_leads }}</div></div></div>
+  <div class="col-md-4"><div class="card border-0 shadow-sm p-3"><div class="small text-muted">Leads Aktif</div><div class="h4 fw-bold text-primary mb-0">{{ metrics.active_leads }}</div></div></div>
+  <div class="col-md-4"><div class="card border-0 shadow-sm p-3"><div class="small text-muted">Won</div><div class="h4 fw-bold text-success mb-0">{{ metrics.won_leads }}</div></div></div>
+</div>
+
+<div class="card border-0 shadow-sm p-4">
+  <canvas id="leadTrendChart" height="110"></canvas>
+</div>
+{% endblock %}
+
+{% block page_js %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+(function () {
+  var data = {{ charts | json_encode() | safe }};
+  var ctx = document.getElementById('leadTrendChart').getContext('2d');
+  new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels: data.labels,
+      datasets: [
+        { label: 'Leads Baru', data: data.lead_counts, borderColor: '#2563eb', backgroundColor: 'rgba(37,99,235,0.1)', fill: true, tension: 0.3 },
+        { label: 'Interaksi', data: data.interaction_counts, borderColor: '#10b981', backgroundColor: 'rgba(16,185,129,0.1)', fill: true, tension: 0.3 }
+      ]
+    },
+    options: { responsive: true, scales: { y: { beginAtZero: true, ticks: { precision: 0 } } } }
+  });
+})();
+</script>
+{% endblock %}

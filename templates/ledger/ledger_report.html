@@ -1,0 +1,68 @@
+{% extends "dashboard_layout.html" %}
+{% block title %}Laporan Buku Besar - Ledger{% endblock %}
+
+{% block main_content %}
+<div class="d-flex flex-wrap justify-content-between align-items-center pb-2 mb-3 border-bottom gap-2">
+  <h1 class="h3 mb-0">Laporan Buku Besar (General Ledger)</h1>
+  <a href="/ledger/" class="btn btn-outline-secondary btn-sm">← Ledger</a>
+</div>
+
+<form method="get" class="card card-body border-0 shadow-sm mb-4">
+  <div class="row g-2 align-items-end">
+    <div class="col-md-3">
+      <label class="form-label small fw-bold">Mode</label>
+      <select name="mode" class="form-select form-select-sm" onchange="this.form.submit()">
+        <option value="period" {% if mode == 'period' %}selected{% endif %}>Per Periode (YYYY-MM)</option>
+        <option value="year" {% if mode == 'year' %}selected{% endif %}>Per Tahun</option>
+      </select>
+    </div>
+    {% if mode == 'period' %}
+    <div class="col-md-4">
+      <label class="form-label small fw-bold">Periode</label>
+      <select name="period" class="form-select form-select-sm" onchange="this.form.submit()">
+        {% for p in periods %}<option value="{{ p.period }}" {% if selected_period == p.period %}selected{% endif %}>{{ p.period }} ({% if p.is_closed %}Closed{% else %}Open{% endif %})</option>{% endfor %}
+      </select>
+    </div>
+    {% else %}
+    <div class="col-md-4">
+      <label class="form-label small fw-bold">Tahun</label>
+      <input type="number" name="year" class="form-control form-control-sm" value="{{ selected_year }}">
+    </div>
+    {% endif %}
+    <div class="col-md-2">
+      <button type="submit" class="btn btn-primary btn-sm w-100">Tampilkan</button>
+    </div>
+  </div>
+</form>
+
+{% for item in ledger_data %}
+<div class="card border-0 shadow-sm mb-3">
+  <div class="card-header bg-white d-flex justify-content-between align-items-center">
+    <span class="fw-bold">{{ item.account.account_name }} <span class="badge bg-light text-dark border ms-1">{{ item.account.account_type }}</span></span>
+    <span class="small">Saldo Awal: <strong>{{ item.opening_balance | intcomma }}</strong> | Saldo Akhir: <strong class="text-primary">{{ item.closing_balance | intcomma }}</strong></span>
+  </div>
+  {% if item.rows %}
+  <div class="table-responsive">
+    <table class="table table-sm table-hover mb-0 small">
+      <thead class="table-light">
+        <tr><th class="ps-3">Tanggal</th><th>Keterangan</th><th class="text-end">Debit</th><th class="text-end">Credit</th><th class="pe-3 text-end">Saldo</th></tr>
+      </thead>
+      <tbody>
+        {% for r in item.rows %}
+        <tr>
+          <td class="ps-3">{{ r.date }}</td>
+          <td>{{ r.desc }}</td>
+          <td class="text-end font-monospace">{{ r.debit | intcomma }}</td>
+          <td class="text-end font-monospace">{{ r.credit | intcomma }}</td>
+          <td class="pe-3 text-end font-monospace fw-bold">{{ r.balance | intcomma }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% endif %}
+</div>
+{% else %}
+<div class="alert alert-light border text-center py-4 text-muted">Belum ada akun atau transaksi.</div>
+{% endfor %}
+{% endblock %}
