@@ -916,3 +916,4 @@ mod tests {
         assert!(!reaches_in_graph(&adj, 4, 1));
     }
 }
+

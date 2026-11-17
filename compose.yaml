@@ -1,44 +1,24 @@
-version: '3.8'
-
 services:
   db:
-    image: mariadb:11
-    container_name: teknusa_rust_mariadb
+    image: postgres:16-alpine
+    container_name: teknusa_rust_postgres
     restart: unless-stopped
     environment:
-      MARIADB_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-rootpassword123}
-      MARIADB_DATABASE: teknusas_teknusa
-      MARIADB_USER: teknusas_teknusa
-      MARIADB_PASSWORD: ${MYSQL_PASSWORD:-@Pontianak123}
+      POSTGRES_DB: teknusas_teknusa
+      POSTGRES_USER: teknusas_teknusa
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-${DB_PASSWORD:-@Pontianak123}}
     ports:
-      - "3310:3306"
+      - "5433:5432"
     volumes:
-      - mariadb_data:/var/lib/mysql
-      - ./mysql.cnf:/etc/mysql/conf.d/mysql.cnf:ro
+      - postgres_data:/var/lib/postgresql/data
     networks:
       - teknusa_network
     healthcheck:
-      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      test: ["CMD-SHELL", "pg_isready -U teknusas_teknusa -d teknusas_teknusa"]
       interval: 10s
-      timeout: 20s
-      retries: 10
-      start_period: 60s
-
-  redis:
-    image: redis:7-alpine
-    container_name: teknusa_rust_redis
-    restart: unless-stopped
-    ports:
-      - "6381:6379"
-    volumes:
-      - redis_data:/data
-    networks:
-      - teknusa_network
-    healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
-      interval: 10s
-      timeout: 3s
-      retries: 3
+      timeout: 5s
+      retries: 5
+      start_period: 10s
 
   web:
     build:
@@ -54,9 +34,8 @@ services:
       - DB_HOST=db
       - DB_NAME=teknusas_teknusa
       - DB_USER=teknusas_teknusa
-      - DB_PASSWORD=${MYSQL_PASSWORD:-@Pontianak123}
-      - DB_PORT=3306
-      - REDIS_URL=redis://redis:6379/0
+      - DB_PASSWORD=${POSTGRES_PASSWORD:-${DB_PASSWORD:-@Pontianak123}}
+      - DB_PORT=5432
       - AGENT_LLM_MODE=${AGENT_LLM_MODE:-gemini}
       - OLLAMA_URL=${OLLAMA_URL:-http://172.18.0.1:11434}
       - OLLAMA_MODEL=${OLLAMA_MODEL:-llama3.2:1b}
@@ -68,15 +47,13 @@ services:
       - 8.8.8.8
       - 1.1.1.1
     ports:
-      - "8002:8000"
+      - "8003:8000"
     volumes:
       - ./media:/app/media
       - ./static:/app/static
       - ./private:/app/private
     depends_on:
       db:
-        condition: service_healthy
-      redis:
         condition: service_healthy
     networks:
       - teknusa_network
@@ -92,9 +69,7 @@ services:
       - teknusa_network
 
 volumes:
-  mariadb_data:
-    driver: local
-  redis_data:
+  postgres_data:
     driver: local
   ollama_data:
     driver: local
@@ -102,4 +77,3 @@ volumes:
 networks:
   teknusa_network:
     driver: bridge
-

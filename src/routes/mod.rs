@@ -200,3 +200,4 @@ pub fn build_router() -> Router<AppState> {
         .route("/agent/llm/test-suite/", post(agent::llm_test_suite_view))
         .route("/agent/chat/", post(agent::chat_view))
 }
+
