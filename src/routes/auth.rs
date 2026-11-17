@@ -71,7 +71,7 @@ pub async fn login_post(
     Form(form): Form<LoginForm>,
 ) -> Response {
     let username = form.username.trim();
-    let user = sqlx::query_as::<_, User>(
+    let user = crate::db::pg_query_as::<User>(
         "SELECT id, password, last_login, is_superuser, username, first_name, last_name, email, is_staff, is_active, date_joined
          FROM auth_user WHERE username = ? LIMIT 1",
     )
@@ -86,7 +86,7 @@ pub async fn login_post(
 
     match user {
         Some(u) if u.is_active && verify_django_password(&form.password, &u.password) => {
-            let _ = sqlx::query("UPDATE auth_user SET last_login = NOW(6) WHERE id = ?")
+            let _ = crate::db::pg_query("UPDATE auth_user SET last_login = CURRENT_TIMESTAMP WHERE id = ?")
                 .bind(u.id)
                 .execute(&state.db)
                 .await;
@@ -149,7 +149,7 @@ pub async fn register_post(
     }
 
     let existing: Option<(i32,)> =
-        sqlx::query_as("SELECT id FROM auth_user WHERE username = ? LIMIT 1")
+        crate::db::pg_query_as("SELECT id FROM auth_user WHERE username = ? LIMIT 1")
             .bind(username)
             .fetch_optional(&state.db)
             .await
@@ -161,9 +161,9 @@ pub async fn register_post(
     }
 
     let hashed = hash_django_password(&form.password1);
-    let res = sqlx::query(
+    let res = crate::db::pg_query(
         "INSERT INTO auth_user (password, is_superuser, username, first_name, last_name, email, is_staff, is_active, date_joined)
-         VALUES (?, 0, ?, ?, ?, ?, 0, 1, NOW(6))",
+         VALUES (?, 0, ?, ?, ?, ?, 0, 1, CURRENT_TIMESTAMP)",
     )
     .bind(hashed)
     .bind(username)

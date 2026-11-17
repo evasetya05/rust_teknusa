@@ -153,7 +153,7 @@ pub async fn idea_list(State(state): State<AppState>, session: SessionContext) -
         return resp;
     }
 
-    let rows = sqlx::query(
+    let rows = crate::db::pg_query(
         "SELECT id, title, description, assumptions, priority, status, created_at
          FROM lean_idea ORDER BY priority DESC, created_at DESC",
     )
@@ -191,7 +191,7 @@ pub async fn idea_detail(
         return resp;
     }
 
-    let row = sqlx::query(
+    let row = crate::db::pg_query(
         "SELECT id, title, description, assumptions, priority, status, created_at FROM lean_idea WHERE id = ? LIMIT 1",
     )
     .bind(pk)
@@ -213,7 +213,7 @@ pub async fn idea_detail(
         created_at: dt.format("%d %b %Y").to_string(),
     };
 
-    let build_rows = sqlx::query(
+    let build_rows = crate::db::pg_query(
         "SELECT id, idea_id, title, description, link, status FROM lean_build WHERE idea_id = ? ORDER BY id ASC",
     )
     .bind(pk)
@@ -228,7 +228,7 @@ pub async fn idea_detail(
 
     for br in build_rows {
         let bid: i64 = br.get("id");
-        let prod_rows = sqlx::query(
+        let prod_rows = crate::db::pg_query(
             "SELECT id, build_id, name, description, public FROM lean_product WHERE build_id = ? ORDER BY id ASC",
         )
         .bind(bid)
@@ -239,7 +239,7 @@ pub async fn idea_detail(
         let mut products = Vec::new();
         for pr in prod_rows {
             let pid: i64 = pr.get("id");
-            let meas_rows = sqlx::query(
+            let meas_rows = crate::db::pg_query(
                 "SELECT id, product_id, metric, target, current, notes FROM lean_measure WHERE product_id = ? ORDER BY id ASC",
             )
             .bind(pid)
@@ -250,7 +250,7 @@ pub async fn idea_detail(
             let mut measures = Vec::new();
             for mr in meas_rows {
                 let mid: i64 = mr.get("id");
-                let dp_rows = sqlx::query(
+                let dp_rows = crate::db::pg_query(
                     "SELECT id, measure_id, value, measured_at, note FROM lean_datapoint WHERE measure_id = ? ORDER BY measured_at DESC",
                 )
                 .bind(mid)
@@ -308,7 +308,7 @@ pub async fn idea_detail(
         });
     }
 
-    let learnings: Vec<LearningView> = sqlx::query(
+    let learnings: Vec<LearningView> = crate::db::pg_query(
         "SELECT id, idea_id, summary, action, created_at FROM lean_learning WHERE idea_id = ? ORDER BY created_at DESC",
     )
     .bind(pk)
@@ -364,16 +364,16 @@ pub async fn idea_create_post(
     } else {
         form.status.trim()
     };
-    let res = sqlx::query(
+    let res = crate::db::pg_query(
         "INSERT INTO lean_idea (title, description, assumptions, priority, status, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, NOW(6), NOW(6))",
+         VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP) RETURNING id",
     )
     .bind(form.title.trim())
     .bind(form.description.trim())
     .bind(form.assumptions.trim())
     .bind(form.priority)
     .bind(status)
-    .execute(&state.db)
+    .fetch_one(&state.db)
     .await;
 
     match res {
@@ -382,7 +382,7 @@ pub async fn idea_create_post(
             redirect_with_session(
                 &state,
                 &session.payload,
-                &format!("/lean/idea/{}/", ok.last_insert_id()),
+                &format!("/lean/idea/{}/", ok.get::<i64, _>("id")),
             )
         }
         Err(e) => {
@@ -400,7 +400,7 @@ pub async fn idea_edit_get(
     if let Err(resp) = session.require_auth_redirect() {
         return resp;
     }
-    let row = sqlx::query(
+    let row = crate::db::pg_query(
         "SELECT id, title, description, assumptions, priority, status, created_at FROM lean_idea WHERE id = ? LIMIT 1",
     )
     .bind(pk)
@@ -444,8 +444,8 @@ pub async fn idea_edit_post(
     } else {
         form.status.trim()
     };
-    let _ = sqlx::query(
-        "UPDATE lean_idea SET title = ?, description = ?, assumptions = ?, priority = ?, status = ?, updated_at = NOW(6) WHERE id = ?",
+    let _ = crate::db::pg_query(
+        "UPDATE lean_idea SET title = ?, description = ?, assumptions = ?, priority = ?, status = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
     )
     .bind(form.title.trim())
     .bind(form.description.trim())
@@ -474,9 +474,9 @@ pub async fn build_add_post(
     } else {
         form.status.trim()
     };
-    let _ = sqlx::query(
+    let _ = crate::db::pg_query(
         "INSERT INTO lean_build (idea_id, title, description, link, status, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, NOW(6), NOW(6))",
+         VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)",
     )
     .bind(idea_id)
     .bind(form.title.trim())
@@ -498,7 +498,7 @@ pub async fn build_edit_get(
     if let Err(resp) = session.require_auth_redirect() {
         return resp;
     }
-    let row = sqlx::query(
+    let row = crate::db::pg_query(
         "SELECT id, idea_id, title, description, link, status FROM lean_build WHERE id = ? LIMIT 1",
     )
     .bind(pk)
@@ -538,13 +538,13 @@ pub async fn build_edit_post(
     if let Err(resp) = session.require_auth_redirect() {
         return resp;
     }
-    let idea_id: Option<i64> = sqlx::query_scalar("SELECT idea_id FROM lean_build WHERE id = ?")
+    let idea_id: Option<i64> = crate::db::pg_query_scalar("SELECT idea_id FROM lean_build WHERE id = ?")
         .bind(pk)
         .fetch_optional(&state.db)
         .await
         .unwrap_or(None);
-    let _ = sqlx::query(
-        "UPDATE lean_build SET title = ?, description = ?, link = ?, status = ?, updated_at = NOW(6) WHERE id = ?",
+    let _ = crate::db::pg_query(
+        "UPDATE lean_build SET title = ?, description = ?, link = ?, status = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
     )
     .bind(form.title.trim())
     .bind(form.description.trim())
@@ -569,15 +569,15 @@ pub async fn product_add_post(
     if let Err(resp) = session.require_auth_redirect() {
         return resp;
     }
-    let idea_id: Option<i64> = sqlx::query_scalar("SELECT idea_id FROM lean_build WHERE id = ?")
+    let idea_id: Option<i64> = crate::db::pg_query_scalar("SELECT idea_id FROM lean_build WHERE id = ?")
         .bind(build_id)
         .fetch_optional(&state.db)
         .await
         .unwrap_or(None);
     let is_pub = form.public.is_some();
-    let _ = sqlx::query(
+    let _ = crate::db::pg_query(
         "INSERT INTO lean_product (build_id, name, description, public, created_at, updated_at)
-         VALUES (?, ?, ?, ?, NOW(6), NOW(6))",
+         VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)",
     )
     .bind(build_id)
     .bind(form.name.trim())
@@ -600,7 +600,7 @@ pub async fn product_edit_get(
     if let Err(resp) = session.require_auth_redirect() {
         return resp;
     }
-    let row = sqlx::query(
+    let row = crate::db::pg_query(
         "SELECT p.id, p.build_id, p.name, p.description, p.public, b.idea_id
          FROM lean_product p JOIN lean_build b ON b.id = p.build_id WHERE p.id = ? LIMIT 1",
     )
@@ -638,7 +638,7 @@ pub async fn product_edit_post(
     if let Err(resp) = session.require_auth_redirect() {
         return resp;
     }
-    let idea_id: Option<i64> = sqlx::query_scalar(
+    let idea_id: Option<i64> = crate::db::pg_query_scalar(
         "SELECT b.idea_id FROM lean_product p JOIN lean_build b ON b.id = p.build_id WHERE p.id = ?",
     )
     .bind(pk)
@@ -646,8 +646,8 @@ pub async fn product_edit_post(
     .await
     .unwrap_or(None);
     let is_pub = form.public.is_some();
-    let _ = sqlx::query(
-        "UPDATE lean_product SET name = ?, description = ?, public = ?, updated_at = NOW(6) WHERE id = ?",
+    let _ = crate::db::pg_query(
+        "UPDATE lean_product SET name = ?, description = ?, public = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
     )
     .bind(form.name.trim())
     .bind(form.description.trim())
@@ -671,7 +671,7 @@ pub async fn measure_add_post(
     if let Err(resp) = session.require_auth_redirect() {
         return resp;
     }
-    let idea_id: Option<i64> = sqlx::query_scalar(
+    let idea_id: Option<i64> = crate::db::pg_query_scalar(
         "SELECT b.idea_id FROM lean_product p JOIN lean_build b ON b.id = p.build_id WHERE p.id = ?",
     )
     .bind(product_id)
@@ -680,9 +680,9 @@ pub async fn measure_add_post(
     .unwrap_or(None);
     let target_val: Option<f64> = form.target.trim().parse().ok();
     let current_val: Option<f64> = form.current.trim().parse().ok();
-    let _ = sqlx::query(
+    let _ = crate::db::pg_query(
         "INSERT INTO lean_measure (product_id, metric, target, current, notes, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, NOW(6), NOW(6))",
+         VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)",
     )
     .bind(product_id)
     .bind(form.metric.trim())
@@ -706,7 +706,7 @@ pub async fn measure_edit_get(
     if let Err(resp) = session.require_auth_redirect() {
         return resp;
     }
-    let row = sqlx::query(
+    let row = crate::db::pg_query(
         "SELECT m.id, m.metric, m.target, m.current, m.notes, b.idea_id
          FROM lean_measure m
          JOIN lean_product p ON p.id = m.product_id
@@ -748,7 +748,7 @@ pub async fn measure_edit_post(
     if let Err(resp) = session.require_auth_redirect() {
         return resp;
     }
-    let idea_id: Option<i64> = sqlx::query_scalar(
+    let idea_id: Option<i64> = crate::db::pg_query_scalar(
         "SELECT b.idea_id FROM lean_measure m JOIN lean_product p ON p.id = m.product_id JOIN lean_build b ON b.id = p.build_id WHERE m.id = ?",
     )
     .bind(pk)
@@ -757,8 +757,8 @@ pub async fn measure_edit_post(
     .unwrap_or(None);
     let target_val: Option<f64> = form.target.trim().parse().ok();
     let current_val: Option<f64> = form.current.trim().parse().ok();
-    let _ = sqlx::query(
-        "UPDATE lean_measure SET metric = ?, target = ?, current = ?, notes = ?, updated_at = NOW(6) WHERE id = ?",
+    let _ = crate::db::pg_query(
+        "UPDATE lean_measure SET metric = ?, target = ?, current = ?, notes = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
     )
     .bind(form.metric.trim())
     .bind(target_val)
@@ -783,7 +783,7 @@ pub async fn datapoint_add_post(
     if let Err(resp) = session.require_auth_redirect() {
         return resp;
     }
-    let idea_id: Option<i64> = sqlx::query_scalar(
+    let idea_id: Option<i64> = crate::db::pg_query_scalar(
         "SELECT b.idea_id FROM lean_measure m JOIN lean_product p ON p.id = m.product_id JOIN lean_build b ON b.id = p.build_id WHERE m.id = ?",
     )
     .bind(measure_id)
@@ -791,9 +791,9 @@ pub async fn datapoint_add_post(
     .await
     .unwrap_or(None);
     let dt = parse_dt_or_now(&form.measured_at);
-    let _ = sqlx::query(
+    let _ = crate::db::pg_query(
         "INSERT INTO lean_datapoint (measure_id, value, measured_at, note, created_at, updated_at)
-         VALUES (?, ?, ?, ?, NOW(6), NOW(6))",
+         VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)",
     )
     .bind(measure_id)
     .bind(form.value)
@@ -816,7 +816,7 @@ pub async fn datapoint_edit_get(
     if let Err(resp) = session.require_auth_redirect() {
         return resp;
     }
-    let row = sqlx::query(
+    let row = crate::db::pg_query(
         "SELECT d.id, d.value, d.measured_at, d.note, b.idea_id
          FROM lean_datapoint d
          JOIN lean_measure m ON m.id = d.measure_id
@@ -858,7 +858,7 @@ pub async fn datapoint_edit_post(
     if let Err(resp) = session.require_auth_redirect() {
         return resp;
     }
-    let idea_id: Option<i64> = sqlx::query_scalar(
+    let idea_id: Option<i64> = crate::db::pg_query_scalar(
         "SELECT b.idea_id FROM lean_datapoint d JOIN lean_measure m ON m.id = d.measure_id JOIN lean_product p ON p.id = m.product_id JOIN lean_build b ON b.id = p.build_id WHERE d.id = ?",
     )
     .bind(pk)
@@ -866,8 +866,8 @@ pub async fn datapoint_edit_post(
     .await
     .unwrap_or(None);
     let dt = parse_dt_or_now(&form.measured_at);
-    let _ = sqlx::query(
-        "UPDATE lean_datapoint SET value = ?, measured_at = ?, note = ?, updated_at = NOW(6) WHERE id = ?",
+    let _ = crate::db::pg_query(
+        "UPDATE lean_datapoint SET value = ?, measured_at = ?, note = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
     )
     .bind(form.value)
     .bind(dt)
@@ -891,9 +891,9 @@ pub async fn learning_add_post(
     if let Err(resp) = session.require_auth_redirect() {
         return resp;
     }
-    let _ = sqlx::query(
+    let _ = crate::db::pg_query(
         "INSERT INTO lean_learning (idea_id, summary, action, created_at, updated_at)
-         VALUES (?, ?, ?, NOW(6), NOW(6))",
+         VALUES (?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)",
     )
     .bind(idea_id)
     .bind(form.summary.trim())
@@ -912,7 +912,7 @@ pub async fn learning_edit_get(
     if let Err(resp) = session.require_auth_redirect() {
         return resp;
     }
-    let row = sqlx::query(
+    let row = crate::db::pg_query(
         "SELECT id, idea_id, summary, action FROM lean_learning WHERE id = ? LIMIT 1",
     )
     .bind(pk)
@@ -951,13 +951,13 @@ pub async fn learning_edit_post(
         return resp;
     }
     let idea_id: Option<i64> =
-        sqlx::query_scalar("SELECT idea_id FROM lean_learning WHERE id = ?")
+        crate::db::pg_query_scalar("SELECT idea_id FROM lean_learning WHERE id = ?")
             .bind(pk)
             .fetch_optional(&state.db)
             .await
             .unwrap_or(None);
-    let _ = sqlx::query(
-        "UPDATE lean_learning SET summary = ?, action = ?, updated_at = NOW(6) WHERE id = ?",
+    let _ = crate::db::pg_query(
+        "UPDATE lean_learning SET summary = ?, action = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
     )
     .bind(form.summary.trim())
     .bind(form.action.trim())

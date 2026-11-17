@@ -1,6 +1,6 @@
 # Teknusa ERP (Rust Port)
 
-Porting penuh modul internal ERP dari project Python Django (`teknusa`) ke Rust (`Axum` + `SQLx MySQL/MariaDB` + `Tera`).
+Porting penuh modul internal ERP dari project Python Django (`teknusa`) ke Rust (`Axum` + `SQLx PostgreSQL` + `Tera`).
 
 ## Modul yang Tersedia
 - **Accounts & Auth (`/login/`, `/register/`, `/logout/`)**: Kompatibel dengan tabel `auth_user` dan hash password Django `pbkdf2_sha256`, plus cookie sesi bertanda HMAC-SHA256.
@@ -18,19 +18,20 @@ Porting penuh modul internal ERP dari project Python Django (`teknusa`) ke Rust 
 
 ```bash
 cp .env.example .env
-# Sesuaikan DB_HOST, DB_USER, DB_PASSWORD, DB_NAME di .env
+# Jalankan PostgreSQL di localhost:5433 (compose service `db` tersedia)
+docker compose up -d db
 cargo run --release
 ```
 
 Server berjalan di `http://0.0.0.0:8000` (atau port sesuai `PORT`). Jika tabel `auth_user` masih kosong, user admin default (`admin` / `admin123`) dibuat otomatis saat startup.
 
-## Menjalankan dengan Docker Compose
+## Menjalankan PostgreSQL dengan Docker Compose
 
 ```bash
-docker compose up -d --build
+docker compose up -d db
 ```
 
-Untuk menyertakan layanan lokal Ollama:
+Jalankan aplikasi secara lokal dengan `cargo run --release`. Untuk menyertakan layanan lokal Ollama:
 
 ```bash
 docker compose --profile llm up -d --build

@@ -346,11 +346,11 @@ pub async fn channel_add_post(
     if let Err(resp) = session.require_auth_redirect() {
         return resp;
     }
-    let _ = sqlx::query(
+    let _ = crate::db::pg_query(
         "INSERT INTO post_media_channel
          (akun_id, for_market_id, channel_id, funnel_stage_id, kategori_biaya_id, amount,
           rencana_tanggal_posting, tanggal_posting, is_posted, jenis_konten, judul, isi_konten, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(6), NOW(6))",
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)",
     )
     .bind(opt_i64_str(&form.akun))
     .bind(opt_i64_str(&form.for_market))
@@ -399,11 +399,11 @@ pub async fn channel_edit_post(
     if let Err(resp) = session.require_auth_redirect() {
         return resp;
     }
-    let _ = sqlx::query(
+    let _ = crate::db::pg_query(
         "UPDATE post_media_channel
          SET akun_id = ?, for_market_id = ?, channel_id = ?, funnel_stage_id = ?, kategori_biaya_id = ?,
              amount = ?, rencana_tanggal_posting = ?, tanggal_posting = ?, is_posted = ?,
-             jenis_konten = ?, judul = ?, isi_konten = ?, updated_at = NOW(6)
+             jenis_konten = ?, judul = ?, isi_konten = ?, updated_at = CURRENT_TIMESTAMP
          WHERE id = ?",
     )
     .bind(opt_i64_str(&form.akun))
@@ -582,7 +582,7 @@ pub async fn update_performance_post(
             }
         }
         let json_str = serde_json::to_string(&perf.metrics_map).unwrap_or_else(|_| "{}".to_string());
-        let _ = sqlx::query("UPDATE post_media_channelperformance SET metrics = ? WHERE id = ?")
+        let _ = crate::db::pg_query("UPDATE post_media_channelperformance SET metrics = ? WHERE id = ?")
             .bind(json_str)
             .bind(perf.id)
             .execute(&state.db)
@@ -601,7 +601,7 @@ pub async fn ide_konten_list(State(state): State<AppState>, session: SessionCont
     if let Err(resp) = session.require_auth_redirect() {
         return resp;
     }
-    let rows = sqlx::query(
+    let rows = crate::db::pg_query(
         "SELECT id, teks, terkirim_telegram, created_at FROM post_media_idekonten ORDER BY created_at DESC LIMIT 30",
     )
     .fetch_all(&state.db)
@@ -636,7 +636,7 @@ pub async fn ide_konten_generate(
     }
     let kirim = form.kirim_telegram.as_deref() == Some("on");
 
-    let histori_rows: Vec<String> = sqlx::query_scalar(
+    let histori_rows: Vec<String> = crate::db::pg_query_scalar(
         "SELECT teks FROM post_media_idekonten ORDER BY created_at DESC LIMIT 30",
     )
     .fetch_all(&state.db)
@@ -705,22 +705,22 @@ pub async fn ide_konten_generate(
     }
 
     let truncated: String = ide_teks.chars().take(255).collect();
-    let inserted = sqlx::query(
-        "INSERT INTO post_media_idekonten (teks, terkirim_telegram, created_at) VALUES (?, 0, NOW(6))",
+    let inserted = crate::db::pg_query(
+        "INSERT INTO post_media_idekonten (teks, terkirim_telegram, created_at) VALUES (?, FALSE, CURRENT_TIMESTAMP) RETURNING id",
     )
     .bind(&truncated)
-    .execute(&state.db)
+    .fetch_one(&state.db)
     .await;
 
     // Keep max 30 entries
     let keep_ids: Vec<i64> =
-        sqlx::query_scalar("SELECT id FROM post_media_idekonten ORDER BY created_at DESC LIMIT 30")
+        crate::db::pg_query_scalar("SELECT id FROM post_media_idekonten ORDER BY created_at DESC LIMIT 30")
             .fetch_all(&state.db)
             .await
             .unwrap_or_default();
     if keep_ids.len() == 30 {
         let min_keep = *keep_ids.iter().min().unwrap_or(&0);
-        let _ = sqlx::query("DELETE FROM post_media_idekonten WHERE id < ?")
+        let _ = crate::db::pg_query("DELETE FROM post_media_idekonten WHERE id < ?")
             .bind(min_keep)
             .execute(&state.db)
             .await;
@@ -747,10 +747,10 @@ pub async fn ide_konten_generate(
         if let Ok(r) = tg_res {
             if r.status().is_success() {
                 if let Ok(ok) = inserted {
-                    let _ = sqlx::query(
+                    let _ = crate::db::pg_query(
                         "UPDATE post_media_idekonten SET terkirim_telegram = 1 WHERE id = ?",
                     )
-                    .bind(ok.last_insert_id() as i64)
+                    .bind(ok.get::<i64, _>("id"))
                     .execute(&state.db)
                     .await;
                 }
@@ -771,7 +771,7 @@ pub async fn ide_konten_generate(
 
 async fn fetch_lookup(state: &AppState, table: &str) -> Vec<LookupRow> {
     let sql = format!("SELECT id, name FROM {} ORDER BY name ASC", table);
-    sqlx::query(&sql)
+    crate::db::pg_query(&sql)
         .fetch_all(&state.db)
         .await
         .unwrap_or_default()
@@ -829,7 +829,7 @@ async fn fetch_channels(
     }
     sql.push_str(" ORDER BY c.created_at DESC");
 
-    let mut q = sqlx::query(&sql);
+    let mut q = crate::db::pg_query(&sql);
     if !market_filter.is_empty() {
         q = q.bind(market_filter);
     }
@@ -845,7 +845,7 @@ async fn fetch_channels(
 }
 
 async fn fetch_one_channel(state: &AppState, pk: i64) -> Option<ChannelView> {
-    let row = sqlx::query(
+    let row = crate::db::pg_query(
         "SELECT c.id, c.akun_id, ak.name AS akun_name, c.for_market_id, mk.name AS market_name,
                 c.channel_id, dc.name AS channel_name, c.funnel_stage_id, fs.name AS fs_name,
                 c.kategori_biaya_id, bya.name AS biaya_name, c.amount,
@@ -866,7 +866,7 @@ async fn fetch_one_channel(state: &AppState, pk: i64) -> Option<ChannelView> {
     Some(row_to_channel_view(row))
 }
 
-fn row_to_channel_view(r: sqlx::mysql::MySqlRow) -> ChannelView {
+fn row_to_channel_view(r: sqlx::postgres::PgRow) -> ChannelView {
     let amt: Option<Decimal> = r.get("amount");
     let rtp: Option<NaiveDate> = r.get("rencana_tanggal_posting");
     let tp: Option<NaiveDateTime> = r.get("tanggal_posting");
@@ -899,7 +899,7 @@ async fn get_or_create_perf(
     platform: &str,
 ) -> PerfView {
     let today = Utc::now().date_naive();
-    let existing = sqlx::query(
+    let existing = crate::db::pg_query(
         "SELECT id, period, as_of_date, metrics FROM post_media_channelperformance
          WHERE channel_id = ? AND period = ? ORDER BY as_of_date DESC, id DESC LIMIT 1",
     )
@@ -922,17 +922,17 @@ async fn get_or_create_perf(
         };
     }
 
-    let ok = sqlx::query(
+    let ok = crate::db::pg_query(
         "INSERT INTO post_media_channelperformance (channel_id, period, as_of_date, metrics, created_at)
-         VALUES (?, ?, ?, '{}', NOW(6))",
+         VALUES (?, ?, ?, '{}', CURRENT_TIMESTAMP) RETURNING id",
     )
     .bind(channel_id)
     .bind(period)
     .bind(today)
-    .execute(&state.db)
+    .fetch_one(&state.db)
     .await;
 
-    let id = ok.map(|x| x.last_insert_id() as i64).unwrap_or(0);
+    let id = ok.ok().and_then(|row| row.try_get::<i64, _>("id").ok()).unwrap_or(0);
     PerfView {
         id,
         period: period.to_string(),
@@ -947,7 +947,7 @@ async fn fetch_latest_1m_perf(
     channel_id: i64,
     platform: &str,
 ) -> Option<PerfView> {
-    let r = sqlx::query(
+    let r = crate::db::pg_query(
         "SELECT id, period, as_of_date, metrics FROM post_media_channelperformance
          WHERE channel_id = ? AND period = '1m' ORDER BY as_of_date DESC, id DESC LIMIT 1",
     )

@@ -144,7 +144,7 @@ fn first_val(map: &HashMap<String, Vec<String>>, key: &str) -> String {
 }
 
 async fn load_users_options(state: &AppState) -> Vec<OptionItem> {
-    let rows = sqlx::query("SELECT id, username, first_name, last_name FROM auth_user WHERE is_active = 1 ORDER BY username")
+    let rows = crate::db::pg_query("SELECT id, username, first_name, last_name FROM auth_user WHERE is_active = 1 ORDER BY username")
         .fetch_all(&state.db)
         .await
         .unwrap_or_default();
@@ -191,7 +191,7 @@ async fn query_leads(
     }
     sql.push_str(" ORDER BY l.created_at DESC");
 
-    let mut q = sqlx::query(&sql);
+    let mut q = crate::db::pg_query(&sql);
     if let Some(eid) = entity_id {
         q = q.bind(eid);
     }
@@ -205,7 +205,7 @@ async fn query_leads(
     rows.into_iter().map(row_to_lead_view).collect()
 }
 
-fn row_to_lead_view(r: sqlx::mysql::MySqlRow) -> LeadView {
+fn row_to_lead_view(r: sqlx::postgres::PgRow) -> LeadView {
     let id: i64 = r.get("id");
     let entity_id: Option<String> = r.get("entity_id");
     let entity_name: Option<String> = r.get("entity_name");
@@ -336,15 +336,15 @@ pub async fn lead_detail_post(
     };
 
     if !form.status.trim().is_empty() && form.status.trim() != lead.status {
-        let _ = sqlx::query("UPDATE leads_lead SET status = ? WHERE id = ?")
+        let _ = crate::db::pg_query("UPDATE leads_lead SET status = ? WHERE id = ?")
             .bind(form.status.trim())
             .bind(pk)
             .execute(&state.db)
             .await;
     }
     if !form.note.trim().is_empty() {
-        let _ = sqlx::query(
-            "INSERT INTO leads_interaction (lead_id, note, created_at) VALUES (?, ?, NOW(6))",
+        let _ = crate::db::pg_query(
+            "INSERT INTO leads_interaction (lead_id, note, created_at) VALUES (?, ?, CURRENT_TIMESTAMP)",
         )
         .bind(pk)
         .bind(form.note.trim())
@@ -399,10 +399,10 @@ pub async fn lead_create_post(
     let status = non_empty_or(&first_val(&form, "status"), "new");
     let lead_source = opt_str(&first_val(&form, "lead_source"));
 
-    let res = sqlx::query(
+    let res = crate::db::pg_query(
         "INSERT INTO leads_lead
          (entity_id, name, email, phone, company, account_medsos, lead_source, assigned_to_id, priority, estimated_value, next_follow_up, status, created_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(6))",
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP) RETURNING id",
     )
     .bind(entity_id)
     .bind(&name)
@@ -416,18 +416,18 @@ pub async fn lead_create_post(
     .bind(est_val)
     .bind(next_fu)
     .bind(status)
-    .execute(&state.db)
+    .fetch_one(&state.db)
     .await;
 
     match res {
         Ok(ok) => {
-            let lead_id = ok.last_insert_id() as i64;
+            let lead_id: i64 = ok.get("id");
             if let Some(notes) = form.get("interaction_note[]") {
                 for n in notes {
                     let trimmed = n.trim();
                     if !trimmed.is_empty() {
-                        let _ = sqlx::query(
-                            "INSERT INTO leads_interaction (lead_id, note, created_at) VALUES (?, ?, NOW(6))",
+                        let _ = crate::db::pg_query(
+                            "INSERT INTO leads_interaction (lead_id, note, created_at) VALUES (?, ?, CURRENT_TIMESTAMP)",
                         )
                         .bind(lead_id)
                         .bind(trimmed)
@@ -500,7 +500,7 @@ pub async fn lead_edit_post(
     let status = non_empty_or(&first_val(&form, "status"), "new");
     let lead_source = opt_str(&first_val(&form, "lead_source"));
 
-    let _ = sqlx::query(
+    let _ = crate::db::pg_query(
         "UPDATE leads_lead
          SET entity_id = ?, name = ?, email = ?, phone = ?, company = ?, account_medsos = ?,
              lead_source = ?, assigned_to_id = ?, priority = ?, estimated_value = ?, next_follow_up = ?, status = ?
@@ -526,8 +526,8 @@ pub async fn lead_edit_post(
         for n in notes {
             let trimmed = n.trim();
             if !trimmed.is_empty() {
-                let _ = sqlx::query(
-                    "INSERT INTO leads_interaction (lead_id, note, created_at) VALUES (?, ?, NOW(6))",
+                let _ = crate::db::pg_query(
+                    "INSERT INTO leads_interaction (lead_id, note, created_at) VALUES (?, ?, CURRENT_TIMESTAMP)",
                 )
                 .bind(pk)
                 .bind(trimmed)
@@ -561,7 +561,7 @@ pub async fn lead_analysis(State(state): State<AppState>, session: SessionContex
     }
     int_sql.push_str(" ORDER BY i.created_at DESC LIMIT 8");
 
-    let mut q = sqlx::query(&int_sql);
+    let mut q = crate::db::pg_query(&int_sql);
     if let Some(ref e) = eid {
         q = q.bind(e);
     }
@@ -612,7 +612,7 @@ pub async fn lead_graphic(State(state): State<AppState>, session: SessionContext
     }
     lead_day_sql.push_str(" GROUP BY DATE(created_at)");
 
-    let mut q1 = sqlx::query(&lead_day_sql).bind(start_date);
+    let mut q1 = crate::db::pg_query(&lead_day_sql).bind(start_date);
     if let Some(ref e) = eid {
         q1 = q1.bind(e);
     }
@@ -634,7 +634,7 @@ pub async fn lead_graphic(State(state): State<AppState>, session: SessionContext
     }
     int_day_sql.push_str(" GROUP BY DATE(i.created_at)");
 
-    let mut q2 = sqlx::query(&int_day_sql).bind(start_date);
+    let mut q2 = crate::db::pg_query(&int_day_sql).bind(start_date);
     if let Some(ref e) = eid {
         q2 = q2.bind(e);
     }
@@ -690,7 +690,7 @@ pub async fn lead_calendar_events(
     if eid.is_some() {
         sql.push_str(" AND entity_id = ?");
     }
-    let mut q = sqlx::query(&sql);
+    let mut q = crate::db::pg_query(&sql);
     if let Some(ref e) = eid {
         q = q.bind(e);
     }
@@ -721,7 +721,7 @@ pub async fn lead_calendar_events(
 }
 
 async fn fetch_one_lead(state: &AppState, pk: i64) -> Option<LeadView> {
-    let row = sqlx::query(
+    let row = crate::db::pg_query(
         "SELECT l.id, l.entity_id, e.name AS entity_name, l.name, l.email, l.phone, l.company,
                 l.account_medsos, l.lead_source, l.assigned_to_id,
                 u.username AS assigned_username, u.first_name AS assigned_first, u.last_name AS assigned_last,
@@ -741,7 +741,7 @@ async fn fetch_one_lead(state: &AppState, pk: i64) -> Option<LeadView> {
 }
 
 async fn fetch_lead_interactions(state: &AppState, lead_id: i64) -> Vec<InteractionView> {
-    sqlx::query(
+    crate::db::pg_query(
         "SELECT i.id, i.lead_id, l.name AS lead_name, i.note, i.created_at
          FROM leads_interaction i
          JOIN leads_lead l ON l.id = i.lead_id

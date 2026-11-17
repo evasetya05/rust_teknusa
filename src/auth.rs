@@ -235,7 +235,7 @@ impl FromRequestParts<AppState> for SessionContext {
             .unwrap_or_default();
 
         let user = if let Some(uid) = payload.user_id {
-            sqlx::query_as::<_, User>(
+            crate::db::pg_query_as::<User>(
                 "SELECT id, password, last_login, is_superuser, username, first_name, last_name, email, is_staff, is_active, date_joined
                  FROM auth_user WHERE id = ? AND is_active = 1 LIMIT 1",
             )
@@ -254,7 +254,7 @@ impl FromRequestParts<AppState> for SessionContext {
         let user_view = user.as_ref().map(UserView::from);
 
         let raw_entities = if user.is_some() {
-            sqlx::query_as::<_, Entity>(
+            crate::db::pg_query_as::<Entity>(
                 "SELECT id, parent_id, name, code, description, email, phone, logo, is_active, created_at, updated_at
                  FROM entity_entity WHERE is_active = 1 ORDER BY name ASC",
             )

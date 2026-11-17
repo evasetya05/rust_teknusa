@@ -2,7 +2,7 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Instant;
 
-use sqlx::MySqlPool;
+use sqlx::PgPool;
 use tera::Tera;
 use tokio::sync::RwLock;
 
@@ -17,7 +17,7 @@ pub struct CachedNarration {
 
 #[derive(Clone)]
 pub struct AppState {
-    pub db: MySqlPool,
+    pub db: PgPool,
     pub tera: Arc<Tera>,
     pub config: AppConfig,
     pub http_client: reqwest::Client,
@@ -27,7 +27,7 @@ pub struct AppState {
 }
 
 impl AppState {
-    pub fn new(db: MySqlPool, tera: Tera, config: AppConfig) -> Self {
+    pub fn new(db: PgPool, tera: Tera, config: AppConfig) -> Self {
         let http_client = reqwest::Client::builder()
             .user_agent("TekNusa-ERP/1.0")
             .build()

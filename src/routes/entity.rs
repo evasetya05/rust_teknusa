@@ -19,7 +19,7 @@ pub struct SelectEntityForm {
 }
 
 async fn load_all_entities(state: &AppState) -> Vec<Entity> {
-    sqlx::query_as::<_, Entity>(
+    crate::db::pg_query_as::<Entity>(
         "SELECT id, parent_id, name, code, description, email, phone, logo, is_active, created_at, updated_at
          FROM entity_entity ORDER BY created_at DESC",
     )
@@ -88,9 +88,9 @@ pub async fn entity_create_post(
         Some(normalize_uuid(&parsed.parent_id))
     };
 
-    let res = sqlx::query(
+    let res = crate::db::pg_query(
         "INSERT INTO entity_entity (id, parent_id, name, code, description, email, phone, logo, is_active, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(6), NOW(6))",
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)",
     )
     .bind(&id)
     .bind(&parent_id)
@@ -125,7 +125,7 @@ pub async fn entity_edit_get(
         return resp;
     }
     let pk_norm = normalize_uuid(&pk);
-    let obj = sqlx::query_as::<_, Entity>(
+    let obj = crate::db::pg_query_as::<Entity>(
         "SELECT id, parent_id, name, code, description, email, phone, logo, is_active, created_at, updated_at
          FROM entity_entity WHERE id = ? LIMIT 1",
     )
@@ -161,7 +161,7 @@ pub async fn entity_edit_post(
         return resp;
     }
     let pk_norm = normalize_uuid(&pk);
-    let existing = sqlx::query_as::<_, Entity>(
+    let existing = crate::db::pg_query_as::<Entity>(
         "SELECT id, parent_id, name, code, description, email, phone, logo, is_active, created_at, updated_at
          FROM entity_entity WHERE id = ? LIMIT 1",
     )
@@ -197,9 +197,9 @@ pub async fn entity_edit_post(
     };
     let logo_final = parsed.logo_path.or(ent.logo.clone());
 
-    let res = sqlx::query(
+    let res = crate::db::pg_query(
         "UPDATE entity_entity
-         SET parent_id = ?, name = ?, code = ?, description = ?, email = ?, phone = ?, logo = ?, is_active = ?, updated_at = NOW(6)
+         SET parent_id = ?, name = ?, code = ?, description = ?, email = ?, phone = ?, logo = ?, is_active = ?, updated_at = CURRENT_TIMESTAMP
          WHERE id = ?",
     )
     .bind(&parent_id)
@@ -240,7 +240,7 @@ pub async fn entity_delete_get(
         return resp;
     }
     let pk_norm = normalize_uuid(&pk);
-    let existing = sqlx::query_as::<_, Entity>(
+    let existing = crate::db::pg_query_as::<Entity>(
         "SELECT id, parent_id, name, code, description, email, phone, logo, is_active, created_at, updated_at
          FROM entity_entity WHERE id = ? LIMIT 1",
     )
@@ -266,7 +266,7 @@ pub async fn entity_delete_post(
         return resp;
     }
     let pk_norm = normalize_uuid(&pk);
-    let _ = sqlx::query("DELETE FROM entity_entity WHERE id = ?")
+    let _ = crate::db::pg_query("DELETE FROM entity_entity WHERE id = ?")
         .bind(&pk_norm)
         .execute(&state.db)
         .await;
@@ -293,7 +293,7 @@ pub async fn select_entity(
         session.push_flash("success", "Beralih ke semua perusahaan.");
     } else if !eid.is_empty() {
         let norm = normalize_uuid(&eid);
-        let found = sqlx::query_as::<_, Entity>(
+        let found = crate::db::pg_query_as::<Entity>(
             "SELECT id, parent_id, name, code, description, email, phone, logo, is_active, created_at, updated_at
              FROM entity_entity WHERE id = ? AND is_active = 1 LIMIT 1",
         )

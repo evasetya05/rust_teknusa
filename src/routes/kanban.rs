@@ -310,22 +310,22 @@ pub async fn board_add_post(
         Err(resp) => return resp,
     };
     let eid = session.entity_filter_id();
-    let res = sqlx::query(
+    let res = crate::db::pg_query(
         "INSERT INTO kanban_board (entity_id, name, description, created_by_id, created_at)
-         VALUES (?, ?, ?, ?, NOW(6))",
+         VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP) RETURNING id",
     )
     .bind(eid)
     .bind(form.name.trim())
     .bind(form.description.trim())
     .bind(user.id)
-    .execute(&state.db)
+    .fetch_one(&state.db)
     .await;
 
     match res {
         Ok(ok) => {
-            let board_id = ok.last_insert_id() as i64;
-            for (pos, col_name) in [(1u32, "To Do"), (2u32, "In Progress"), (3u32, "Done")] {
-                let _ = sqlx::query(
+            let board_id: i64 = ok.get("id");
+            for (pos, col_name) in [(1i32, "To Do"), (2i32, "In Progress"), (3i32, "Done")] {
+                let _ = crate::db::pg_query(
                     "INSERT INTO kanban_column (board_id, name, position) VALUES (?, ?, ?)",
                 )
                 .bind(board_id)
@@ -360,7 +360,7 @@ pub async fn board_detail(
         return Redirect::to("/kanban/").into_response();
     };
 
-    let col_rows = sqlx::query(
+    let col_rows = crate::db::pg_query(
         "SELECT id, name, position FROM kanban_column WHERE board_id = ? ORDER BY position ASC, id ASC",
     )
     .bind(pk)
@@ -371,7 +371,7 @@ pub async fn board_detail(
     let mut columns = Vec::new();
     for cr in col_rows {
         let col_id: i64 = cr.get("id");
-        let task_rows = sqlx::query(
+        let task_rows = crate::db::pg_query(
             "SELECT t.id, t.column_id, t.title, t.description, t.priority, t.start_date, t.due_date, t.completed,
                     (SELECT COUNT(*) FROM kanban_task_assignees a WHERE a.task_id = t.id) AS assignees_cnt,
                     (SELECT COUNT(*) FROM kanban_taskcomment cm WHERE cm.task_id = t.id) AS comments_cnt,
@@ -429,7 +429,7 @@ pub async fn board_detail(
         columns.push(ColumnView {
             id: col_id,
             name: cr.get("name"),
-            position: cr.get("position"),
+            position: cr.get::<i32, _>("position") as u32,
             tasks,
         });
     }
@@ -498,7 +498,7 @@ async fn render_calendar_view(
              WHERE c.board_id IN ({}) AND t.completed = 0 AND t.start_date IS NULL AND t.due_date IS NULL",
             placeholders
         );
-        let mut q_nd = sqlx::query(&nd_sql);
+        let mut q_nd = crate::db::pg_query(&nd_sql);
         for id in &scope_ids {
             q_nd = q_nd.bind(id);
         }
@@ -519,7 +519,7 @@ async fn render_calendar_view(
                AND (t.due_date >= ? OR t.due_date IS NULL)",
             placeholders
         );
-        let mut q_t = sqlx::query(&t_sql);
+        let mut q_t = crate::db::pg_query(&t_sql);
         for id in &scope_ids {
             q_t = q_t.bind(id);
         }
@@ -603,9 +603,9 @@ pub async fn task_add_post(
     let due_date = NaiveDate::parse_from_str(&first_val(&form, "due_date"), "%Y-%m-%d").ok();
     let completed = form.contains_key("completed");
 
-    let res = sqlx::query(
+    let res = crate::db::pg_query(
         "INSERT INTO kanban_task (column_id, title, description, priority, start_date, due_date, position, completed, created_by_id, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, 0, ?, ?, NOW(6), NOW(6))",
+         VALUES (?, ?, ?, ?, ?, ?, 0, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP) RETURNING id",
     )
     .bind(column_id)
     .bind(&title)
@@ -615,15 +615,15 @@ pub async fn task_add_post(
     .bind(due_date)
     .bind(completed)
     .bind(user.id)
-    .execute(&state.db)
+    .fetch_one(&state.db)
     .await;
 
     if let Ok(ok) = res {
-        let task_id = ok.last_insert_id() as i64;
+        let task_id: i64 = ok.get("id");
         sync_task_m2m(&state, task_id, &form).await;
         session.push_flash("success", "Task berhasil ditambahkan.");
         let board_id: Option<i64> =
-            sqlx::query_scalar("SELECT board_id FROM kanban_column WHERE id = ?")
+            crate::db::pg_query_scalar("SELECT board_id FROM kanban_column WHERE id = ?")
                 .bind(column_id)
                 .fetch_optional(&state.db)
                 .await
@@ -646,7 +646,7 @@ pub async fn task_edit_get(
     if let Err(resp) = session.require_auth_redirect() {
         return resp;
     }
-    let row = sqlx::query(
+    let row = crate::db::pg_query(
         "SELECT t.id, t.column_id, c.board_id, b.name AS board_name, t.title, t.description,
                 t.priority, t.start_date, t.due_date, t.completed
          FROM kanban_task t
@@ -667,13 +667,13 @@ pub async fn task_edit_get(
     let dd: Option<NaiveDate> = r.get("due_date");
 
     let selected_assignees: Vec<i32> =
-        sqlx::query_scalar("SELECT user_id FROM kanban_task_assignees WHERE task_id = ?")
+        crate::db::pg_query_scalar("SELECT user_id FROM kanban_task_assignees WHERE task_id = ?")
             .bind(pk)
             .fetch_all(&state.db)
             .await
             .unwrap_or_default();
     let selected_labels: Vec<i64> =
-        sqlx::query_scalar("SELECT label_id FROM kanban_task_labels WHERE task_id = ?")
+        crate::db::pg_query_scalar("SELECT label_id FROM kanban_task_labels WHERE task_id = ?")
             .bind(pk)
             .fetch_all(&state.db)
             .await
@@ -748,9 +748,9 @@ pub async fn task_edit_post(
     let due_date = NaiveDate::parse_from_str(&first_val(&form, "due_date"), "%Y-%m-%d").ok();
     let completed = form.contains_key("completed");
 
-    let _ = sqlx::query(
+    let _ = crate::db::pg_query(
         "UPDATE kanban_task
-         SET column_id = ?, title = ?, description = ?, priority = ?, start_date = ?, due_date = ?, completed = ?, updated_at = NOW(6)
+         SET column_id = ?, title = ?, description = ?, priority = ?, start_date = ?, due_date = ?, completed = ?, updated_at = CURRENT_TIMESTAMP
          WHERE id = ?",
     )
     .bind(column_id)
@@ -767,7 +767,7 @@ pub async fn task_edit_post(
     sync_task_m2m(&state, pk, &form).await;
     session.push_flash("success", "Task diperbarui.");
     let board_id: Option<i64> =
-        sqlx::query_scalar("SELECT board_id FROM kanban_column WHERE id = ?")
+        crate::db::pg_query_scalar("SELECT board_id FROM kanban_column WHERE id = ?")
             .bind(column_id)
             .fetch_optional(&state.db)
             .await
@@ -786,14 +786,14 @@ pub async fn task_delete_post(
     if let Err(resp) = session.require_auth_redirect() {
         return resp;
     }
-    let board_id: Option<i64> = sqlx::query_scalar(
+    let board_id: Option<i64> = crate::db::pg_query_scalar(
         "SELECT c.board_id FROM kanban_task t JOIN kanban_column c ON c.id = t.column_id WHERE t.id = ?",
     )
     .bind(pk)
     .fetch_optional(&state.db)
     .await
     .unwrap_or(None);
-    let _ = sqlx::query("DELETE FROM kanban_task WHERE id = ?")
+    let _ = crate::db::pg_query("DELETE FROM kanban_task WHERE id = ?")
         .bind(pk)
         .execute(&state.db)
         .await;
@@ -812,8 +812,8 @@ pub async fn task_move_post(
     if session.user.is_none() {
         return (StatusCode::UNAUTHORIZED, Json(serde_json::json!({"ok": false}))).into_response();
     }
-    let _ = sqlx::query(
-        "UPDATE kanban_task SET column_id = ?, updated_at = NOW(6) WHERE id = ?",
+    let _ = crate::db::pg_query(
+        "UPDATE kanban_task SET column_id = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
     )
     .bind(form.column_id)
     .bind(form.task_id)
@@ -848,8 +848,8 @@ pub async fn task_comment_add_post(
         Err(resp) => return resp,
     };
     if !form.comment.trim().is_empty() {
-        let _ = sqlx::query(
-            "INSERT INTO kanban_taskcomment (task_id, author_id, comment, created_at) VALUES (?, ?, ?, NOW(6))",
+        let _ = crate::db::pg_query(
+            "INSERT INTO kanban_taskcomment (task_id, author_id, comment, created_at) VALUES (?, ?, ?, CURRENT_TIMESTAMP)",
         )
         .bind(task_id)
         .bind(user.id)
@@ -875,12 +875,12 @@ pub async fn task_comment_delete_post(
         return resp;
     }
     let task_id: Option<i64> =
-        sqlx::query_scalar("SELECT task_id FROM kanban_taskcomment WHERE id = ?")
+        crate::db::pg_query_scalar("SELECT task_id FROM kanban_taskcomment WHERE id = ?")
             .bind(pk)
             .fetch_optional(&state.db)
             .await
             .unwrap_or(None);
-    let _ = sqlx::query("DELETE FROM kanban_taskcomment WHERE id = ?")
+    let _ = crate::db::pg_query("DELETE FROM kanban_taskcomment WHERE id = ?")
         .bind(pk)
         .execute(&state.db)
         .await;
@@ -940,9 +940,9 @@ pub async fn task_attachment_add_post(
                         let _ = tokio::fs::create_dir_all(parent).await;
                     }
                     if tokio::fs::write(&dest, &bytes).await.is_ok() {
-                        let _ = sqlx::query(
+                        let _ = crate::db::pg_query(
                             "INSERT INTO kanban_taskattachment (task_id, file, uploaded_by_id, uploaded_at)
-                             VALUES (?, ?, ?, NOW(6))",
+                             VALUES (?, ?, ?, CURRENT_TIMESTAMP)",
                         )
                         .bind(task_id)
                         .bind(&rel)
@@ -967,12 +967,12 @@ pub async fn task_attachment_delete_post(
         return resp;
     }
     let task_id: Option<i64> =
-        sqlx::query_scalar("SELECT task_id FROM kanban_taskattachment WHERE id = ?")
+        crate::db::pg_query_scalar("SELECT task_id FROM kanban_taskattachment WHERE id = ?")
             .bind(pk)
             .fetch_optional(&state.db)
             .await
             .unwrap_or(None);
-    let _ = sqlx::query("DELETE FROM kanban_taskattachment WHERE id = ?")
+    let _ = crate::db::pg_query("DELETE FROM kanban_taskattachment WHERE id = ?")
         .bind(pk)
         .execute(&state.db)
         .await;
@@ -1011,7 +1011,7 @@ pub async fn task_checklist_add_post(
         return Redirect::to(&format!("/kanban/task/{}/edit/", task_id)).into_response();
     }
 
-    let pos: i64 = sqlx::query_scalar(
+    let pos: i64 = crate::db::pg_query_scalar(
         "SELECT COUNT(*) FROM kanban_taskchecklistitem WHERE task_id = ?",
     )
     .bind(task_id)
@@ -1019,18 +1019,18 @@ pub async fn task_checklist_add_post(
     .await
     .unwrap_or(0);
 
-    let ok = sqlx::query(
+    let ok = crate::db::pg_query(
         "INSERT INTO kanban_taskchecklistitem (task_id, title, is_completed, position, created_by_id, created_at)
-         VALUES (?, ?, 0, ?, ?, NOW(6))",
+         VALUES (?, ?, FALSE, ?, ?, CURRENT_TIMESTAMP) RETURNING id",
     )
     .bind(task_id)
     .bind(title)
-    .bind(pos as u32)
+    .bind(pos as i32)
     .bind(user.id)
-    .execute(&state.db)
+    .fetch_one(&state.db)
     .await;
 
-    let item_id = ok.map(|r| r.last_insert_id() as i64).unwrap_or(0);
+    let item_id = ok.ok().and_then(|r| r.try_get::<i64, _>("id").ok()).unwrap_or(0);
     let items = fetch_task_checklists(&state, task_id).await;
     let stats = compute_checklist_stats(&items);
 
@@ -1059,7 +1059,7 @@ pub async fn task_checklist_toggle_post(
         Ok(u) => u.clone(),
         Err(resp) => return resp,
     };
-    let row = sqlx::query("SELECT task_id, is_completed FROM kanban_taskchecklistitem WHERE id = ? LIMIT 1")
+    let row = crate::db::pg_query("SELECT task_id, is_completed FROM kanban_taskchecklistitem WHERE id = ? LIMIT 1")
         .bind(pk)
         .fetch_optional(&state.db)
         .await
@@ -1073,15 +1073,15 @@ pub async fn task_checklist_toggle_post(
     let now_done = !was_done;
 
     if now_done {
-        let _ = sqlx::query(
-            "UPDATE kanban_taskchecklistitem SET is_completed = 1, completed_at = NOW(6), completed_by_id = ? WHERE id = ?",
+        let _ = crate::db::pg_query(
+            "UPDATE kanban_taskchecklistitem SET is_completed = 1, completed_at = CURRENT_TIMESTAMP, completed_by_id = ? WHERE id = ?",
         )
         .bind(user.id)
         .bind(pk)
         .execute(&state.db)
         .await;
     } else {
-        let _ = sqlx::query(
+        let _ = crate::db::pg_query(
             "UPDATE kanban_taskchecklistitem SET is_completed = 0, completed_at = NULL, completed_by_id = NULL WHERE id = ?",
         )
         .bind(pk)
@@ -1110,13 +1110,13 @@ pub async fn task_checklist_delete_post(
         return resp;
     }
     let task_id: Option<i64> =
-        sqlx::query_scalar("SELECT task_id FROM kanban_taskchecklistitem WHERE id = ?")
+        crate::db::pg_query_scalar("SELECT task_id FROM kanban_taskchecklistitem WHERE id = ?")
             .bind(pk)
             .fetch_optional(&state.db)
             .await
             .unwrap_or(None);
 
-    let _ = sqlx::query("DELETE FROM kanban_taskchecklistitem WHERE id = ?")
+    let _ = crate::db::pg_query("DELETE FROM kanban_taskchecklistitem WHERE id = ?")
         .bind(pk)
         .execute(&state.db)
         .await;
@@ -1149,7 +1149,7 @@ async fn fetch_boards(state: &AppState, eid: Option<&str>) -> Vec<BoardView> {
     }
     sql.push_str(" ORDER BY b.name ASC");
 
-    let mut q = sqlx::query(&sql);
+    let mut q = crate::db::pg_query(&sql);
     if let Some(e) = eid {
         q = q.bind(e);
     }
@@ -1172,7 +1172,7 @@ async fn fetch_boards(state: &AppState, eid: Option<&str>) -> Vec<BoardView> {
 }
 
 async fn fetch_one_board(state: &AppState, pk: i64) -> Option<BoardView> {
-    let r = sqlx::query(
+    let r = crate::db::pg_query(
         "SELECT b.id, b.entity_id, e.name AS entity_name, b.name, b.description, b.created_at
          FROM kanban_board b
          LEFT JOIN entity_entity e ON e.id = b.entity_id
@@ -1211,7 +1211,7 @@ async fn fetch_columns_for_board_or_entity(
     }
     sql.push_str(" ORDER BY b.name ASC, c.position ASC");
 
-    let mut q = sqlx::query(&sql);
+    let mut q = crate::db::pg_query(&sql);
     if let Some(bid) = board_id {
         q = q.bind(bid);
     } else if let Some(e) = eid {
@@ -1232,7 +1232,7 @@ async fn fetch_columns_for_board_or_entity(
 }
 
 async fn fetch_active_users(state: &AppState) -> Vec<serde_json::Value> {
-    sqlx::query("SELECT id, username, first_name, last_name FROM auth_user WHERE is_active = 1 ORDER BY username")
+    crate::db::pg_query("SELECT id, username, first_name, last_name FROM auth_user WHERE is_active = 1 ORDER BY username")
         .fetch_all(&state.db)
         .await
         .unwrap_or_default()
@@ -1251,7 +1251,7 @@ async fn fetch_active_users(state: &AppState) -> Vec<serde_json::Value> {
 }
 
 async fn fetch_labels(state: &AppState) -> Vec<serde_json::Value> {
-    sqlx::query("SELECT id, name, color FROM kanban_label ORDER BY name")
+    crate::db::pg_query("SELECT id, name, color FROM kanban_label ORDER BY name")
         .fetch_all(&state.db)
         .await
         .unwrap_or_default()
@@ -1267,15 +1267,15 @@ async fn fetch_labels(state: &AppState) -> Vec<serde_json::Value> {
 }
 
 async fn sync_task_m2m(state: &AppState, task_id: i64, form: &HashMap<String, Vec<String>>) {
-    let _ = sqlx::query("DELETE FROM kanban_task_assignees WHERE task_id = ?")
+    let _ = crate::db::pg_query("DELETE FROM kanban_task_assignees WHERE task_id = ?")
         .bind(task_id)
         .execute(&state.db)
         .await;
     if let Some(uids) = form.get("assignees") {
         for raw in uids {
             if let Ok(uid) = raw.trim().parse::<i32>() {
-                let _ = sqlx::query(
-                    "INSERT IGNORE INTO kanban_task_assignees (task_id, user_id) VALUES (?, ?)",
+                let _ = crate::db::pg_query(
+                    "INSERT INTO kanban_task_assignees (task_id, user_id) VALUES (?, ?) ON CONFLICT DO NOTHING",
                 )
                 .bind(task_id)
                 .bind(uid)
@@ -1285,15 +1285,15 @@ async fn sync_task_m2m(state: &AppState, task_id: i64, form: &HashMap<String, Ve
         }
     }
 
-    let _ = sqlx::query("DELETE FROM kanban_task_labels WHERE task_id = ?")
+    let _ = crate::db::pg_query("DELETE FROM kanban_task_labels WHERE task_id = ?")
         .bind(task_id)
         .execute(&state.db)
         .await;
     if let Some(lids) = form.get("labels") {
         for raw in lids {
             if let Ok(lid) = raw.trim().parse::<i64>() {
-                let _ = sqlx::query(
-                    "INSERT IGNORE INTO kanban_task_labels (task_id, label_id) VALUES (?, ?)",
+                let _ = crate::db::pg_query(
+                    "INSERT INTO kanban_task_labels (task_id, label_id) VALUES (?, ?) ON CONFLICT DO NOTHING",
                 )
                 .bind(task_id)
                 .bind(lid)
@@ -1305,7 +1305,7 @@ async fn sync_task_m2m(state: &AppState, task_id: i64, form: &HashMap<String, Ve
 }
 
 async fn fetch_task_comments(state: &AppState, task_id: i64) -> Vec<serde_json::Value> {
-    sqlx::query(
+    crate::db::pg_query(
         "SELECT c.id, c.comment, c.created_at, u.username, u.first_name, u.last_name
          FROM kanban_taskcomment c
          JOIN auth_user u ON u.id = c.author_id
@@ -1336,7 +1336,7 @@ async fn fetch_task_comments(state: &AppState, task_id: i64) -> Vec<serde_json::
 }
 
 async fn fetch_task_attachments(state: &AppState, task_id: i64) -> Vec<serde_json::Value> {
-    sqlx::query(
+    crate::db::pg_query(
         "SELECT a.id, a.file, a.uploaded_at, u.username
          FROM kanban_taskattachment a
          LEFT JOIN auth_user u ON u.id = a.uploaded_by_id
@@ -1363,7 +1363,7 @@ async fn fetch_task_attachments(state: &AppState, task_id: i64) -> Vec<serde_jso
 }
 
 async fn fetch_task_checklists(state: &AppState, task_id: i64) -> Vec<ChecklistItemView> {
-    sqlx::query(
+    crate::db::pg_query(
         "SELECT ch.id, ch.title, ch.is_completed,
                 uc.username AS c_user, uc.first_name AS c_fn, uc.last_name AS c_ln,
                 ud.username AS d_user, ud.first_name AS d_fn, ud.last_name AS d_ln

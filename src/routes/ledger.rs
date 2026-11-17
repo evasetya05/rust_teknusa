@@ -199,7 +199,7 @@ pub async fn account_create_post(
     } else {
         Some(form.coa_role_default.trim().to_string())
     };
-    let _ = sqlx::query(
+    let _ = crate::db::pg_query(
         "INSERT INTO ledger_account (entity_id, account_type, account_name, coa, balance_type, active, locked, coa_role_default)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
     )
@@ -260,19 +260,19 @@ pub async fn create_journal_entry_post(
         );
     }
 
-    let res = sqlx::query(
+    let res = crate::db::pg_query(
         "INSERT INTO ledger_journalentry (entity_id, date, description, created_at, period, is_posted)
-         VALUES (?, ?, ?, NOW(6), ?, 0)",
+         VALUES (?, ?, ?, CURRENT_TIMESTAMP, ?, FALSE) RETURNING id",
     )
     .bind(eid.as_deref())
     .bind(date)
     .bind(&description)
     .bind(&open_period)
-    .execute(&state.db)
+    .fetch_one(&state.db)
     .await;
 
     if let Ok(ok) = res {
-        let je_id = ok.last_insert_id() as i64;
+        let je_id: i64 = ok.get("id");
         insert_journal_items(&state, je_id, &form).await;
         session.push_flash(
             "success",
@@ -299,7 +299,7 @@ pub async fn journal_list(State(state): State<AppState>, session: SessionContext
     }
     sql.push_str(" ORDER BY period DESC, date DESC, id DESC");
 
-    let mut q = sqlx::query(&sql);
+    let mut q = crate::db::pg_query(&sql);
     if let Some(ref e) = eid {
         q = q.bind(e);
     }
@@ -354,7 +354,7 @@ pub async fn journal_edit_get(
     if let Err(resp) = session.require_auth_redirect() {
         return resp;
     }
-    let row = sqlx::query(
+    let row = crate::db::pg_query(
         "SELECT id, entity_id, date, description, period, is_posted FROM ledger_journalentry WHERE id = ? LIMIT 1",
     )
     .bind(pk)
@@ -404,14 +404,14 @@ pub async fn journal_edit_post(
     let description = first_form_val(&form, "description");
     let is_posted = first_form_val(&form, "post") == "1";
 
-    let _ = sqlx::query("UPDATE ledger_journalentry SET description = ?, is_posted = ? WHERE id = ?")
+    let _ = crate::db::pg_query("UPDATE ledger_journalentry SET description = ?, is_posted = ? WHERE id = ?")
         .bind(&description)
         .bind(is_posted)
         .bind(pk)
         .execute(&state.db)
         .await;
 
-    let _ = sqlx::query("DELETE FROM ledger_journalitem WHERE journal_entry_id = ?")
+    let _ = crate::db::pg_query("DELETE FROM ledger_journalitem WHERE journal_entry_id = ?")
         .bind(pk)
         .execute(&state.db)
         .await;
@@ -449,7 +449,7 @@ pub async fn closing_period_list(
         let cur = Utc::now().format("%Y-%m").to_string();
         ensure_period_exists(&state, &cur, eid.as_deref()).await;
         if let Some(ref e) = eid {
-            let _ = sqlx::query(
+            let _ = crate::db::pg_query(
                 "UPDATE ledger_closingperiod SET is_closed = 0 WHERE period = ? AND entity_id = ?",
             )
             .bind(&cur)
@@ -457,7 +457,7 @@ pub async fn closing_period_list(
             .execute(&state.db)
             .await;
         } else {
-            let _ = sqlx::query(
+            let _ = crate::db::pg_query(
                 "UPDATE ledger_closingperiod SET is_closed = 0 WHERE period = ? AND entity_id IS NULL",
             )
             .bind(&cur)
@@ -489,7 +489,7 @@ pub async fn close_period(
     ensure_period_exists(&state, &period, eid.as_deref()).await;
 
     let is_closed: Option<bool> = if let Some(ref e) = eid {
-        sqlx::query_scalar(
+        crate::db::pg_query_scalar(
             "SELECT is_closed FROM ledger_closingperiod WHERE period = ? AND entity_id = ? LIMIT 1",
         )
         .bind(&period)
@@ -498,7 +498,7 @@ pub async fn close_period(
         .await
         .unwrap_or(None)
     } else {
-        sqlx::query_scalar(
+        crate::db::pg_query_scalar(
             "SELECT is_closed FROM ledger_closingperiod WHERE period = ? AND entity_id IS NULL LIMIT 1",
         )
         .bind(&period)
@@ -518,15 +518,15 @@ pub async fn close_period(
 
     // Post all unposted journals into this period
     if let Some(ref e) = eid {
-        let _ = sqlx::query(
+        let _ = crate::db::pg_query(
             "UPDATE ledger_journalentry SET period = ?, is_posted = 1 WHERE is_posted = 0 AND entity_id = ?",
         )
         .bind(&period)
         .bind(e)
         .execute(&state.db)
         .await;
-        let _ = sqlx::query(
-            "UPDATE ledger_closingperiod SET is_closed = 1, closed_at = NOW(6), closed_by = ? WHERE period = ? AND entity_id = ?",
+        let _ = crate::db::pg_query(
+            "UPDATE ledger_closingperiod SET is_closed = 1, closed_at = CURRENT_TIMESTAMP, closed_by = ? WHERE period = ? AND entity_id = ?",
         )
         .bind(&user.username)
         .bind(&period)
@@ -534,14 +534,14 @@ pub async fn close_period(
         .execute(&state.db)
         .await;
     } else {
-        let _ = sqlx::query(
+        let _ = crate::db::pg_query(
             "UPDATE ledger_journalentry SET period = ?, is_posted = 1 WHERE is_posted = 0",
         )
         .bind(&period)
         .execute(&state.db)
         .await;
-        let _ = sqlx::query(
-            "UPDATE ledger_closingperiod SET is_closed = 1, closed_at = NOW(6), closed_by = ? WHERE period = ? AND entity_id IS NULL",
+        let _ = crate::db::pg_query(
+            "UPDATE ledger_closingperiod SET is_closed = 1, closed_at = CURRENT_TIMESTAMP, closed_by = ? WHERE period = ? AND entity_id IS NULL",
         )
         .bind(&user.username)
         .bind(&period)
@@ -554,7 +554,7 @@ pub async fn close_period(
     if let Some(next_month) = next_month_period(&period) {
         ensure_period_exists(&state, &next_month, eid.as_deref()).await;
         if let Some(ref e) = eid {
-            let _ = sqlx::query(
+            let _ = crate::db::pg_query(
                 "UPDATE ledger_closingperiod SET is_closed = 0, closed_at = NULL, closed_by = NULL WHERE period = ? AND entity_id = ?",
             )
             .bind(&next_month)
@@ -562,7 +562,7 @@ pub async fn close_period(
             .execute(&state.db)
             .await;
         } else {
-            let _ = sqlx::query(
+            let _ = crate::db::pg_query(
                 "UPDATE ledger_closingperiod SET is_closed = 0, closed_at = NULL, closed_by = NULL WHERE period = ? AND entity_id IS NULL",
             )
             .bind(&next_month)
@@ -609,8 +609,8 @@ async fn adjust_retained_earnings(
         exp_sql.push_str(" AND je.entity_id = ? AND a.entity_id = ?");
     }
 
-    let mut q1 = sqlx::query(&inc_sql).bind(period);
-    let mut q2 = sqlx::query(&exp_sql).bind(period);
+    let mut q1 = crate::db::pg_query(&inc_sql).bind(period);
+    let mut q2 = crate::db::pg_query(&exp_sql).bind(period);
     if let Some(e) = eid {
         q1 = q1.bind(e).bind(e);
         q2 = q2.bind(e).bind(e);
@@ -649,20 +649,20 @@ async fn adjust_retained_earnings(
 
     let today = Utc::now().date_naive();
     let desc = format!("Automatic Retained Earnings Adjustment for {}", period);
-    if let Ok(ok) = sqlx::query(
+    if let Ok(ok) = crate::db::pg_query(
         "INSERT INTO ledger_journalentry (entity_id, date, description, created_at, period, is_posted)
-         VALUES (?, ?, ?, NOW(6), ?, 1)",
+         VALUES (?, ?, ?, CURRENT_TIMESTAMP, ?, TRUE) RETURNING id",
     )
     .bind(eid)
     .bind(today)
     .bind(&desc)
     .bind(period)
-    .execute(&state.db)
+    .fetch_one(&state.db)
     .await
     {
-        let je_id = ok.last_insert_id() as i64;
+        let je_id: i64 = ok.get("id");
         if net_profit > 0 {
-            let _ = sqlx::query(
+            let _ = crate::db::pg_query(
                 "INSERT INTO ledger_journalitem (journal_entry_id, account_id, debit, credit, note)
                  VALUES (?, ?, 0, ?, 'Transfer Profit to Retained Earnings')",
             )
@@ -672,7 +672,7 @@ async fn adjust_retained_earnings(
             .execute(&state.db)
             .await;
         } else {
-            let _ = sqlx::query(
+            let _ = crate::db::pg_query(
                 "INSERT INTO ledger_journalitem (journal_entry_id, account_id, debit, credit, note)
                  VALUES (?, ?, ?, 0, 'Transfer Loss to Retained Earnings')",
             )
@@ -739,14 +739,14 @@ pub async fn ledger_report(
              WHERE ji.account_id = ? AND je.is_posted = 1",
         );
         if mode == "year" {
-            ob_sql.push_str(" AND YEAR(je.date) < ?");
+            ob_sql.push_str(" AND EXTRACT(YEAR FROM je.date)::INTEGER < ?");
         } else {
             ob_sql.push_str(" AND je.period < ?");
         }
         if eid.is_some() {
             ob_sql.push_str(" AND je.entity_id = ?");
         }
-        let mut ob_q = sqlx::query(&ob_sql).bind(acc.id);
+        let mut ob_q = crate::db::pg_query(&ob_sql).bind(acc.id);
         if mode == "year" {
             ob_q = ob_q.bind(year_num);
         } else {
@@ -769,7 +769,7 @@ pub async fn ledger_report(
              WHERE ji.account_id = ? AND je.is_posted = 1",
         );
         if mode == "year" {
-            it_sql.push_str(" AND YEAR(je.date) = ?");
+            it_sql.push_str(" AND EXTRACT(YEAR FROM je.date)::INTEGER = ?");
         } else {
             it_sql.push_str(" AND je.period = ?");
         }
@@ -778,7 +778,7 @@ pub async fn ledger_report(
         }
         it_sql.push_str(" ORDER BY je.date ASC, ji.id ASC");
 
-        let mut it_q = sqlx::query(&it_sql).bind(acc.id);
+        let mut it_q = crate::db::pg_query(&it_sql).bind(acc.id);
         if mode == "year" {
             it_q = it_q.bind(year_num);
         } else {
@@ -1212,7 +1212,7 @@ pub async fn dimension_report(
     }
     if mode == "year" && !q.year.trim().is_empty() {
         if let Ok(y) = q.year.trim().parse::<i32>() {
-            sql.push_str(&format!(" AND YEAR(je.date) = {}", y));
+            sql.push_str(&format!(" AND EXTRACT(YEAR FROM je.date)::INTEGER = {}", y));
         }
     } else if mode == "range" && !q.start_date.trim().is_empty() && !q.end_date.trim().is_empty() {
         sql.push_str(" AND je.date BETWEEN ? AND ?");
@@ -1232,7 +1232,7 @@ pub async fn dimension_report(
     }
     sql.push_str(" ORDER BY je.date ASC, je.id ASC, ji.id ASC");
 
-    let mut query = sqlx::query(&sql);
+    let mut query = crate::db::pg_query(&sql);
     if let Some(ref e) = eid {
         query = query.bind(e);
     }
@@ -1451,19 +1451,19 @@ pub async fn dimensions_create_post(
 
     let sql = match form.dim_type.as_str() {
         "partner" => format!(
-            "INSERT INTO {} (entity_id, partner_type, code, name, is_active, created_at, updated_at) VALUES (?, ?, ?, ?, 1, NOW(6), NOW(6))",
+            "INSERT INTO {} (entity_id, partner_type, code, name, is_active, created_at, updated_at) VALUES (?, ?, ?, ?, 1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)",
             table
         ),
         "product" => format!(
-            "INSERT INTO {} (entity_id, product_type, code, name, is_active, created_at, updated_at) VALUES (?, ?, ?, ?, 1, NOW(6), NOW(6))",
+            "INSERT INTO {} (entity_id, product_type, code, name, is_active, created_at, updated_at) VALUES (?, ?, ?, ?, 1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)",
             table
         ),
         "location" => format!(
-            "INSERT INTO {} (entity_id, code, name, address, is_active, created_at, updated_at) VALUES (?, ?, ?, ?, 1, NOW(6), NOW(6))",
+            "INSERT INTO {} (entity_id, code, name, address, is_active, created_at, updated_at) VALUES (?, ?, ?, ?, 1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)",
             table
         ),
         _ => format!(
-            "INSERT INTO {} (entity_id, code, name, description, is_active, created_at, updated_at) VALUES (?, ?, ?, ?, 1, NOW(6), NOW(6))",
+            "INSERT INTO {} (entity_id, code, name, description, is_active, created_at, updated_at) VALUES (?, ?, ?, ?, 1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)",
             table
         ),
     };
@@ -1478,7 +1478,7 @@ pub async fn dimensions_create_post(
         } else {
             form.extra_type.trim()
         };
-        sqlx::query(&sql)
+        crate::db::pg_query(&sql)
             .bind(eid.as_deref())
             .bind(etype)
             .bind(form.code.trim())
@@ -1486,7 +1486,7 @@ pub async fn dimensions_create_post(
             .execute(&state.db)
             .await
     } else {
-        sqlx::query(&sql)
+        crate::db::pg_query(&sql)
             .bind(eid.as_deref())
             .bind(form.code.trim())
             .bind(form.name.trim())
@@ -1517,7 +1517,7 @@ async fn fetch_accounts(state: &AppState, eid: Option<&str>, active_only: bool) 
         sql.push_str(" AND entity_id = ?");
     }
     sql.push_str(" ORDER BY account_name ASC");
-    let mut q = sqlx::query(&sql);
+    let mut q = crate::db::pg_query(&sql);
     if let Some(e) = eid {
         q = q.bind(e);
     }
@@ -1552,7 +1552,7 @@ async fn fetch_dim_table(
         sql.push_str(" AND entity_id = ?");
     }
     sql.push_str(" ORDER BY code ASC, name ASC");
-    let mut q = sqlx::query(&sql);
+    let mut q = crate::db::pg_query(&sql);
     if let Some(e) = eid {
         q = q.bind(e);
     }
@@ -1580,7 +1580,7 @@ async fn insert_dimension_lists(state: &AppState, eid: Option<&str>, ctx: &mut C
 }
 
 async fn fetch_journal_items(state: &AppState, je_id: i64) -> Vec<JournalItemView> {
-    sqlx::query(
+    crate::db::pg_query(
         "SELECT ji.id, ji.account_id, a.account_name, a.account_type, a.coa,
                 ji.cost_center_id, cc.name AS cc_name,
                 ji.profit_center_id, pc.name AS pc_name,
@@ -1672,7 +1672,7 @@ async fn insert_journal_items(state: &AppState, je_id: i64, form: &HashMap<Strin
         let prt_id = opt_i64(prts.get(i));
         let prd_id = opt_i64(prds.get(i));
 
-        let _ = sqlx::query(
+        let _ = crate::db::pg_query(
             "INSERT INTO ledger_journalitem
              (journal_entry_id, account_id, cost_center_id, profit_center_id, project_id, activity_id, location_id, partner_id, product_id, debit, credit, note)
              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
@@ -1712,7 +1712,7 @@ async fn fetch_closing_periods(
     }
     sql.push_str(" ORDER BY period DESC");
 
-    let mut q = sqlx::query(&sql);
+    let mut q = crate::db::pg_query(&sql);
     if let Some(e) = eid {
         q = q.bind(e);
     }
@@ -1735,7 +1735,7 @@ async fn fetch_closing_periods(
 
 pub async fn get_or_create_open_period(state: &AppState, eid: Option<&str>) -> String {
     let open: Option<String> = if let Some(e) = eid {
-        sqlx::query_scalar(
+        crate::db::pg_query_scalar(
             "SELECT period FROM ledger_closingperiod WHERE is_closed = 0 AND entity_id = ? ORDER BY period DESC LIMIT 1",
         )
         .bind(e)
@@ -1743,7 +1743,7 @@ pub async fn get_or_create_open_period(state: &AppState, eid: Option<&str>) -> S
         .await
         .unwrap_or(None)
     } else {
-        sqlx::query_scalar(
+        crate::db::pg_query_scalar(
             "SELECT period FROM ledger_closingperiod WHERE is_closed = 0 AND entity_id IS NULL ORDER BY period DESC LIMIT 1",
         )
         .fetch_optional(&state.db)
@@ -1760,7 +1760,7 @@ pub async fn get_or_create_open_period(state: &AppState, eid: Option<&str>) -> S
 
 async fn ensure_period_exists(state: &AppState, period: &str, eid: Option<&str>) {
     let exists: Option<i64> = if let Some(e) = eid {
-        sqlx::query_scalar(
+        crate::db::pg_query_scalar(
             "SELECT id FROM ledger_closingperiod WHERE period = ? AND entity_id = ? LIMIT 1",
         )
         .bind(period)
@@ -1769,7 +1769,7 @@ async fn ensure_period_exists(state: &AppState, period: &str, eid: Option<&str>)
         .await
         .unwrap_or(None)
     } else {
-        sqlx::query_scalar(
+        crate::db::pg_query_scalar(
             "SELECT id FROM ledger_closingperiod WHERE period = ? AND entity_id IS NULL LIMIT 1",
         )
         .bind(period)
@@ -1778,8 +1778,8 @@ async fn ensure_period_exists(state: &AppState, period: &str, eid: Option<&str>)
         .unwrap_or(None)
     };
     if exists.is_none() {
-        let _ = sqlx::query(
-            "INSERT IGNORE INTO ledger_closingperiod (entity_id, period, is_closed) VALUES (?, ?, 0)",
+        let _ = crate::db::pg_query(
+            "INSERT INTO ledger_closingperiod (entity_id, period, is_closed) VALUES (?, ?, 0) ON CONFLICT DO NOTHING",
         )
         .bind(eid)
         .bind(period)
@@ -1815,7 +1815,7 @@ async fn fetch_posted_items_for_account(
     );
     if mode == "year" {
         if let Ok(y) = year.parse::<i32>() {
-            sql.push_str(&format!(" AND YEAR(je.date) = {}", y));
+            sql.push_str(&format!(" AND EXTRACT(YEAR FROM je.date)::INTEGER = {}", y));
         } else {
             return Vec::new();
         }
@@ -1829,7 +1829,7 @@ async fn fetch_posted_items_for_account(
     }
     sql.push_str(" ORDER BY je.date ASC, ji.id ASC");
 
-    let mut q = sqlx::query(&sql).bind(account_id);
+    let mut q = crate::db::pg_query(&sql).bind(account_id);
     if mode != "year" {
         q = q.bind(period);
     }
@@ -1876,13 +1876,13 @@ async fn sum_account_dc(
     }
     if mode == "year" {
         if let Ok(y) = year.parse::<i32>() {
-            sql.push_str(&format!(" AND YEAR(je.date) = {}", y));
+            sql.push_str(&format!(" AND EXTRACT(YEAR FROM je.date)::INTEGER = {}", y));
         }
     } else if !period.is_empty() {
         sql.push_str(" AND je.period = ?");
     }
 
-    let mut q = sqlx::query(&sql).bind(account_id);
+    let mut q = crate::db::pg_query(&sql).bind(account_id);
     if let Some(e) = eid {
         q = q.bind(e);
     }

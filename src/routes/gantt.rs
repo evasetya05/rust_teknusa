@@ -71,7 +71,7 @@ pub fn reaches_in_graph(adj: &HashMap<i64, Vec<i64>>, start_id: i64, target_id: 
 }
 
 async fn reaches_in_db(state: &AppState, start_id: i64, target_id: i64) -> bool {
-    let rows = sqlx::query("SELECT predecessor_id, successor_id FROM gantt_taskdependency")
+    let rows = crate::db::pg_query("SELECT predecessor_id, successor_id FROM gantt_taskdependency")
         .fetch_all(&state.db)
         .await
         .unwrap_or_default();
@@ -94,7 +94,7 @@ pub async fn gantt_view(
     }
 
     let today = Utc::now().date_naive();
-    let all_entities = sqlx::query_as::<_, Entity>(
+    let all_entities = crate::db::pg_query_as::<Entity>(
         "SELECT id, parent_id, name, code, description, email, phone, logo, is_active, created_at, updated_at
          FROM entity_entity WHERE is_active = 1 ORDER BY name ASC",
     )
@@ -148,7 +148,7 @@ pub async fn gantt_view(
         b_sql.push_str(" AND b.entity_id = ?");
     }
     b_sql.push_str(" ORDER BY e.name ASC, b.name ASC");
-    let mut b_q = sqlx::query(&b_sql);
+    let mut b_q = crate::db::pg_query(&b_sql);
     if !is_all_entities {
         b_q = b_q.bind(&selected_entity_id);
     }
@@ -193,7 +193,7 @@ pub async fn gantt_view(
              WHERE c.board_id IN ({}) AND t.completed = 0 AND t.start_date IS NULL AND t.due_date IS NULL",
             ph
         );
-        let mut nd_q = sqlx::query(&nd_sql);
+        let mut nd_q = crate::db::pg_query(&nd_sql);
         for id in &scope_board_ids {
             nd_q = nd_q.bind(id);
         }
@@ -226,7 +226,7 @@ pub async fn gantt_view(
         }
         t_sql.push_str(" ORDER BY e.name ASC, b.name ASC, t.start_date ASC, t.due_date ASC, t.id ASC");
 
-        let mut t_q = sqlx::query(&t_sql);
+        let mut t_q = crate::db::pg_query(&t_sql);
         for id in &scope_board_ids {
             t_q = t_q.bind(id);
         }
@@ -259,7 +259,7 @@ pub async fn gantt_view(
                 0
             };
 
-            let assignees: Vec<String> = sqlx::query(
+            let assignees: Vec<String> = crate::db::pg_query(
                 "SELECT u.username, u.first_name, u.last_name
                  FROM kanban_task_assignees a
                  JOIN auth_user u ON u.id = a.user_id
@@ -326,7 +326,7 @@ pub async fn gantt_view(
                  WHERE predecessor_id IN ({0}) AND successor_id IN ({0})",
                 t_ph
             );
-            let mut dq = sqlx::query(&dep_sql);
+            let mut dq = crate::db::pg_query(&dep_sql);
             for id in &task_ids {
                 dq = dq.bind(id);
             }
@@ -353,7 +353,7 @@ pub async fn gantt_view(
              ORDER BY m.date ASC, m.id ASC",
             ph
         );
-        let mut mq = sqlx::query(&ms_sql);
+        let mut mq = crate::db::pg_query(&ms_sql);
         for id in &scope_board_ids {
             mq = mq.bind(id);
         }
@@ -386,7 +386,7 @@ pub async fn gantt_view(
             all_sql.push_str(" AND t.completed = 0");
         }
         all_sql.push_str(" ORDER BY b.name ASC, t.title ASC");
-        let mut aq = sqlx::query(&all_sql);
+        let mut aq = crate::db::pg_query(&all_sql);
         for id in &scope_board_ids {
             aq = aq.bind(id);
         }
@@ -453,8 +453,8 @@ pub async fn update_task_dates(
         );
     }
 
-    let res = sqlx::query(
-        "UPDATE kanban_task SET start_date = ?, due_date = ?, updated_at = NOW(6) WHERE id = ?",
+    let res = crate::db::pg_query(
+        "UPDATE kanban_task SET start_date = ?, due_date = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
     )
     .bind(start)
     .bind(end)
@@ -497,12 +497,12 @@ pub async fn dependency_add(
         );
     }
 
-    let pred_exists: Option<i64> = sqlx::query_scalar("SELECT id FROM kanban_task WHERE id = ?")
+    let pred_exists: Option<i64> = crate::db::pg_query_scalar("SELECT id FROM kanban_task WHERE id = ?")
         .bind(pred_id)
         .fetch_optional(&state.db)
         .await
         .unwrap_or(None);
-    let succ_exists: Option<i64> = sqlx::query_scalar("SELECT id FROM kanban_task WHERE id = ?")
+    let succ_exists: Option<i64> = crate::db::pg_query_scalar("SELECT id FROM kanban_task WHERE id = ?")
         .bind(succ_id)
         .fetch_optional(&state.db)
         .await
@@ -511,7 +511,7 @@ pub async fn dependency_add(
         return json_err("Task tidak ditemukan.", StatusCode::NOT_FOUND);
     }
 
-    let dup: Option<i64> = sqlx::query_scalar(
+    let dup: Option<i64> = crate::db::pg_query_scalar(
         "SELECT id FROM gantt_taskdependency WHERE predecessor_id = ? AND successor_id = ? LIMIT 1",
     )
     .bind(pred_id)
@@ -533,20 +533,20 @@ pub async fn dependency_add(
         );
     }
 
-    let res = sqlx::query(
+    let res = crate::db::pg_query(
         "INSERT INTO gantt_taskdependency (predecessor_id, successor_id, created_by_id, created_at)
-         VALUES (?, ?, ?, NOW(6))",
+         VALUES (?, ?, ?, CURRENT_TIMESTAMP) RETURNING id",
     )
     .bind(pred_id)
     .bind(succ_id)
     .bind(user.id)
-    .execute(&state.db)
+    .fetch_one(&state.db)
     .await;
 
     match res {
         Ok(ok) => Json(serde_json::json!({
             "ok": true,
-            "id": ok.last_insert_id() as i64,
+            "id": ok.get::<i64, _>("id"),
             "from": pred_id,
             "to": succ_id,
         }))
@@ -563,7 +563,7 @@ pub async fn dependency_delete(
     if session.user.is_none() {
         return json_err("Unauthorized", StatusCode::UNAUTHORIZED);
     }
-    let deleted = sqlx::query("DELETE FROM gantt_taskdependency WHERE id = ?")
+    let deleted = crate::db::pg_query("DELETE FROM gantt_taskdependency WHERE id = ?")
         .bind(pk)
         .execute(&state.db)
         .await
@@ -588,7 +588,7 @@ pub async fn milestone_add(
     let date_str = params.get("date").map(|s| s.trim().to_string()).unwrap_or_default();
 
     let (board_id, task_title, task_start, task_due) = if let Some(tid) = task_id_opt {
-        let row = sqlx::query(
+        let row = crate::db::pg_query(
             "SELECT t.title, t.start_date, t.due_date, c.board_id
              FROM kanban_task t JOIN kanban_column c ON c.id = t.column_id WHERE t.id = ? LIMIT 1",
         )
@@ -606,7 +606,7 @@ pub async fn milestone_add(
             r.get::<Option<NaiveDate>, _>("due_date"),
         )
     } else if let Some(bid) = board_id_opt {
-        let exists: Option<i64> = sqlx::query_scalar("SELECT id FROM kanban_board WHERE id = ?")
+        let exists: Option<i64> = crate::db::pg_query_scalar("SELECT id FROM kanban_board WHERE id = ?")
             .bind(bid)
             .fetch_optional(&state.db)
             .await
@@ -641,22 +641,22 @@ pub async fn milestone_add(
     }
     let title_trunc: String = title.chars().take(200).collect();
 
-    let res = sqlx::query(
+    let res = crate::db::pg_query(
         "INSERT INTO gantt_milestone (board_id, task_id, title, date, is_done, created_by_id, created_at)
-         VALUES (?, ?, ?, ?, 0, ?, NOW(6))",
+         VALUES (?, ?, ?, ?, FALSE, ?, CURRENT_TIMESTAMP) RETURNING id",
     )
     .bind(board_id)
     .bind(task_id_opt)
     .bind(&title_trunc)
     .bind(when)
     .bind(user.id)
-    .execute(&state.db)
+    .fetch_one(&state.db)
     .await;
 
     match res {
         Ok(ok) => Json(serde_json::json!({
             "ok": true,
-            "id": ok.last_insert_id() as i64,
+            "id": ok.get::<i64, _>("id"),
             "task_id": task_id_opt,
             "board_id": board_id,
             "title": title_trunc,
@@ -676,7 +676,7 @@ pub async fn milestone_toggle(
     if session.user.is_none() {
         return json_err("Unauthorized", StatusCode::UNAUTHORIZED);
     }
-    let cur: Option<bool> = sqlx::query_scalar("SELECT is_done FROM gantt_milestone WHERE id = ?")
+    let cur: Option<bool> = crate::db::pg_query_scalar("SELECT is_done FROM gantt_milestone WHERE id = ?")
         .bind(pk)
         .fetch_optional(&state.db)
         .await
@@ -685,7 +685,7 @@ pub async fn milestone_toggle(
         return json_err("Milestone tidak ditemukan.", StatusCode::NOT_FOUND);
     };
     let next = !was_done;
-    let _ = sqlx::query("UPDATE gantt_milestone SET is_done = ? WHERE id = ?")
+    let _ = crate::db::pg_query("UPDATE gantt_milestone SET is_done = ? WHERE id = ?")
         .bind(next)
         .bind(pk)
         .execute(&state.db)
@@ -702,7 +702,7 @@ pub async fn milestone_move(
     if session.user.is_none() {
         return json_err("Unauthorized", StatusCode::UNAUTHORIZED);
     }
-    let exists: Option<i64> = sqlx::query_scalar("SELECT id FROM gantt_milestone WHERE id = ?")
+    let exists: Option<i64> = crate::db::pg_query_scalar("SELECT id FROM gantt_milestone WHERE id = ?")
         .bind(pk)
         .fetch_optional(&state.db)
         .await
@@ -715,7 +715,7 @@ pub async fn milestone_move(
     let Ok(new_date) = NaiveDate::parse_from_str(date_s, "%Y-%m-%d") else {
         return json_err("Format tanggal tidak valid.", StatusCode::BAD_REQUEST);
     };
-    let _ = sqlx::query("UPDATE gantt_milestone SET date = ? WHERE id = ?")
+    let _ = crate::db::pg_query("UPDATE gantt_milestone SET date = ? WHERE id = ?")
         .bind(new_date)
         .bind(pk)
         .execute(&state.db)
@@ -735,7 +735,7 @@ pub async fn milestone_delete(
     if session.user.is_none() {
         return json_err("Unauthorized", StatusCode::UNAUTHORIZED);
     }
-    let deleted = sqlx::query("DELETE FROM gantt_milestone WHERE id = ?")
+    let deleted = crate::db::pg_query("DELETE FROM gantt_milestone WHERE id = ?")
         .bind(pk)
         .execute(&state.db)
         .await
@@ -773,7 +773,7 @@ pub async fn baseline_set(
         sql.push_str(" AND b.id = ?");
     }
 
-    let mut q = sqlx::query(&sql);
+    let mut q = crate::db::pg_query(&sql);
     if let Some(ref e) = eid {
         q = q.bind(e);
     }
@@ -794,8 +794,8 @@ pub async fn baseline_set(
             continue;
         };
         if existing_bl.is_some() {
-            let _ = sqlx::query(
-                "UPDATE gantt_taskbaseline SET planned_start = ?, planned_end = ?, set_by_id = ?, set_at = NOW(6) WHERE task_id = ?",
+            let _ = crate::db::pg_query(
+                "UPDATE gantt_taskbaseline SET planned_start = ?, planned_end = ?, set_by_id = ?, set_at = CURRENT_TIMESTAMP WHERE task_id = ?",
             )
             .bind(start)
             .bind(end)
@@ -804,9 +804,9 @@ pub async fn baseline_set(
             .execute(&state.db)
             .await;
         } else {
-            let _ = sqlx::query(
+            let _ = crate::db::pg_query(
                 "INSERT INTO gantt_taskbaseline (task_id, planned_start, planned_end, set_by_id, set_at)
-                 VALUES (?, ?, ?, ?, NOW(6))",
+                 VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)",
             )
             .bind(tid)
             .bind(start)
@@ -846,7 +846,7 @@ pub async fn baseline_clear(
     if board_id.is_some() {
         sql.push_str(" AND b.id = ?");
     }
-    let mut q = sqlx::query(&sql);
+    let mut q = crate::db::pg_query(&sql);
     if let Some(ref e) = eid {
         q = q.bind(e);
     }

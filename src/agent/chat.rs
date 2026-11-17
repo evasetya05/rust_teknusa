@@ -106,7 +106,7 @@ pub async fn build_chat_facts(state: &AppState, session_entity_id: &str) -> Stri
             ));
         }
 
-        let boards = sqlx::query("SELECT id, name FROM kanban_board WHERE entity_id = ? ORDER BY name ASC")
+        let boards = crate::db::pg_query("SELECT id, name FROM kanban_board WHERE entity_id = ? ORDER BY name ASC")
             .bind(&e.id)
             .fetch_all(&state.db)
             .await

@@ -27,14 +27,14 @@ impl AppConfig {
             .unwrap_or_else(|_| "django-insecure-1234567890".to_string());
 
         let db_host = env::var("DB_HOST").unwrap_or_else(|_| "localhost".to_string());
-        let db_port = env::var("DB_PORT").unwrap_or_else(|_| "3306".to_string());
+        let db_port = env::var("DB_PORT").unwrap_or_else(|_| "5433".to_string());
         let db_name = env::var("DB_NAME").unwrap_or_else(|_| "teknusas_teknusa".to_string());
         let db_user = env::var("DB_USER").unwrap_or_else(|_| "teknusas_teknusa".to_string());
         let db_password = env::var("DB_PASSWORD").unwrap_or_else(|_| "@Pontianak123".to_string());
 
         let database_url = env::var("DATABASE_URL").unwrap_or_else(|_| {
             format!(
-                "mysql://{}:{}@{}:{}/{}",
+                "postgres://{}:{}@{}:{}/{}",
                 urlencoding::encode(&db_user),
                 urlencoding::encode(&db_password),
                 db_host,

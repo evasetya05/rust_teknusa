@@ -71,7 +71,7 @@ fn days_in_month(year: i32, month: u32) -> i64 {
 }
 
 pub async fn resolve_entities(state: &AppState, session_entity_id: &str) -> Vec<Entity> {
-    let all = sqlx::query_as::<_, Entity>(
+    let all = crate::db::pg_query_as::<Entity>(
         "SELECT id, parent_id, name, code, description, email, phone, logo, is_active, created_at, updated_at
          FROM entity_entity WHERE is_active = 1 ORDER BY name ASC",
     )
@@ -95,7 +95,7 @@ async fn sum_period_totals(
     start: NaiveDate,
     end: NaiveDate,
 ) -> PeriodTotals {
-    let inc_row = sqlx::query(
+    let inc_row = crate::db::pg_query(
         "SELECT COALESCE(SUM(ji.debit), 0) AS d, COALESCE(SUM(ji.credit), 0) AS c
          FROM ledger_journalitem ji
          JOIN ledger_journalentry je ON je.id = ji.journal_entry_id
@@ -117,7 +117,7 @@ async fn sum_period_totals(
         })
         .unwrap_or((0.0, 0.0));
 
-    let exp_row = sqlx::query(
+    let exp_row = crate::db::pg_query(
         "SELECT COALESCE(SUM(ji.debit), 0) AS d, COALESCE(SUM(ji.credit), 0) AS c
          FROM ledger_journalitem ji
          JOIN ledger_journalentry je ON je.id = ji.journal_entry_id
@@ -154,7 +154,7 @@ async fn expense_by_account(
     start: NaiveDate,
     end: NaiveDate,
 ) -> HashMap<String, f64> {
-    let rows = sqlx::query(
+    let rows = crate::db::pg_query(
         "SELECT a.account_name, COALESCE(SUM(ji.debit), 0) AS d, COALESCE(SUM(ji.credit), 0) AS c
          FROM ledger_journalitem ji
          JOIN ledger_journalentry je ON je.id = ji.journal_entry_id
@@ -202,7 +202,7 @@ pub async fn collect_finance(state: &AppState, entity: &Entity, today: NaiveDate
         .collect();
     expense_changes.sort_by(|a, b| b.delta.partial_cmp(&a.delta).unwrap_or(std::cmp::Ordering::Equal));
 
-    let cash_row = sqlx::query(
+    let cash_row = crate::db::pg_query(
         "SELECT COALESCE(SUM(ji.debit), 0) AS d, COALESCE(SUM(ji.credit), 0) AS c
          FROM ledger_journalitem ji
          JOIN ledger_journalentry je ON je.id = ji.journal_entry_id
@@ -219,7 +219,7 @@ pub async fn collect_finance(state: &AppState, entity: &Entity, today: NaiveDate
         })
         .unwrap_or(0.0);
 
-    let open_period: String = sqlx::query_scalar(
+    let open_period: String = crate::db::pg_query_scalar(
         "SELECT period FROM ledger_closingperiod WHERE entity_id = ? AND is_closed = 0 ORDER BY period DESC LIMIT 1",
     )
     .bind(&entity.id)
@@ -228,14 +228,14 @@ pub async fn collect_finance(state: &AppState, entity: &Entity, today: NaiveDate
     .unwrap_or(None)
     .unwrap_or_else(|| today.format("%Y-%m").to_string());
 
-    let unposted_cnt: i64 = sqlx::query_scalar(
+    let unposted_cnt: i64 = crate::db::pg_query_scalar(
         "SELECT COUNT(*) FROM ledger_journalentry WHERE entity_id = ? AND is_posted = 0",
     )
     .bind(&entity.id)
     .fetch_one(&state.db)
     .await
     .unwrap_or(0);
-    let oldest_unposted: Option<NaiveDate> = sqlx::query_scalar(
+    let oldest_unposted: Option<NaiveDate> = crate::db::pg_query_scalar(
         "SELECT MIN(date) FROM ledger_journalentry WHERE entity_id = ? AND is_posted = 0",
     )
     .bind(&entity.id)
@@ -243,7 +243,7 @@ pub async fn collect_finance(state: &AppState, entity: &Entity, today: NaiveDate
     .await
     .unwrap_or(None);
 
-    let unbalanced_rows = sqlx::query(
+    let unbalanced_rows = crate::db::pg_query(
         "SELECT je.id, je.date, je.description, je.period, je.is_posted,
                 COALESCE(SUM(ji.debit), 0) AS total_debit,
                 COALESCE(SUM(ji.credit), 0) AS total_credit
@@ -318,7 +318,7 @@ pub async fn collect_board(
     let stalled_before = now - Duration::days(t.stalled_days);
     let week_ago = now - Duration::days(7);
 
-    let open_rows = sqlx::query(
+    let open_rows = crate::db::pg_query(
         "SELECT t.id, t.title, t.priority, t.due_date, t.updated_at, c.name AS col_name,
                 (SELECT COUNT(*) FROM kanban_task_assignees a WHERE a.task_id = t.id) AS assignee_cnt
          FROM kanban_task t
@@ -428,7 +428,7 @@ pub async fn collect_board(
         .collect();
     let overdue_tasks: Vec<KanbanTaskRow> = overdue_list.into_iter().map(|(r, _)| r).collect();
 
-    let completed_week: i64 = sqlx::query_scalar(
+    let completed_week: i64 = crate::db::pg_query_scalar(
         "SELECT COUNT(*) FROM kanban_task t
          JOIN kanban_column c ON c.id = t.column_id
          WHERE c.board_id = ? AND t.completed = 1 AND t.updated_at >= ?",
@@ -439,7 +439,7 @@ pub async fn collect_board(
     .await
     .unwrap_or(0);
 
-    let columns: Vec<KanbanColumnCount> = sqlx::query(
+    let columns: Vec<KanbanColumnCount> = crate::db::pg_query(
         "SELECT c.name, COUNT(CASE WHEN t.completed = 0 THEN 1 END) AS open_cnt
          FROM kanban_column c
          LEFT JOIN kanban_task t ON t.column_id = c.id
@@ -485,7 +485,7 @@ pub async fn collect_leads(
     let soon_limit = today + Duration::days(t.lead_due_soon_days);
     let stalled_before = now - Duration::days(t.lead_stalled_days);
 
-    let open_rows = sqlx::query(
+    let open_rows = crate::db::pg_query(
         "SELECT l.id, l.name, l.company, l.status, l.priority, l.estimated_value, l.next_follow_up,
                 l.created_at, u.username, u.first_name, u.last_name,
                 (SELECT MAX(i.created_at) FROM leads_interaction i WHERE i.lead_id = l.id) AS last_int
@@ -654,7 +654,7 @@ pub async fn collect_leads(
         .map(|(r, _)| r)
         .collect();
 
-    let new_month: i64 = sqlx::query_scalar(
+    let new_month: i64 = crate::db::pg_query_scalar(
         "SELECT COUNT(*) FROM leads_lead WHERE entity_id = ? AND DATE(created_at) >= ?",
     )
     .bind(&entity.id)
@@ -663,7 +663,7 @@ pub async fn collect_leads(
     .await
     .unwrap_or(0);
 
-    let won_month: i64 = sqlx::query_scalar(
+    let won_month: i64 = crate::db::pg_query_scalar(
         "SELECT COUNT(*) FROM leads_lead WHERE entity_id = ? AND status = 'won' AND DATE(created_at) >= ?",
     )
     .bind(&entity.id)
@@ -780,7 +780,7 @@ pub async fn build_briefings(state: &AppState, session_entity_id: &str) -> AllBr
             narration_source,
         });
 
-        let boards = sqlx::query("SELECT id, name FROM kanban_board WHERE entity_id = ? ORDER BY name ASC")
+        let boards = crate::db::pg_query("SELECT id, name FROM kanban_board WHERE entity_id = ? ORDER BY name ASC")
             .bind(&e.id)
             .fetch_all(&state.db)
             .await
