@@ -5,10 +5,8 @@ use std::path::PathBuf;
 pub struct AppConfig {
     pub host: String,
     pub port: u16,
-    pub debug: bool,
     pub secret_key: String,
     pub database_url: String,
-    pub redis_url: String,
     pub agent_llm_mode: String,
     pub ollama_url: String,
     pub ollama_model: String,
@@ -25,9 +23,6 @@ pub struct AppConfig {
 
 impl AppConfig {
     pub fn from_env() -> Self {
-        let debug = env::var("DEBUG")
-            .unwrap_or_else(|_| "False".to_string())
-            .eq_ignore_ascii_case("true");
         let secret_key = env::var("SECRET_KEY")
             .unwrap_or_else(|_| "django-insecure-1234567890".to_string());
 
@@ -47,9 +42,6 @@ impl AppConfig {
                 db_name
             )
         });
-
-        let redis_url =
-            env::var("REDIS_URL").unwrap_or_else(|_| "redis://redis:6379/0".to_string());
 
         let host = env::var("HOST").unwrap_or_else(|_| "0.0.0.0".to_string());
         let port = env::var("PORT")
@@ -95,10 +87,8 @@ impl AppConfig {
         Self {
             host,
             port,
-            debug,
             secret_key,
             database_url,
-            redis_url,
             agent_llm_mode,
             ollama_url,
             ollama_model,

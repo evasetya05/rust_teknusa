@@ -9,7 +9,7 @@ use sqlx::Row;
 use tera::Context;
 
 use crate::auth::{redirect_with_session, render_page, SessionContext};
-use crate::models::{normalize_uuid, OptionItem};
+use crate::models::normalize_uuid;
 use crate::state::AppState;
 
 #[derive(Clone, Debug, Serialize)]
@@ -128,8 +128,6 @@ pub struct DimensionReportQuery {
     pub account_type: String,
     #[serde(default)]
     pub account_id: String,
-    #[serde(default)]
-    pub view: String,
 }
 
 #[derive(Deserialize)]

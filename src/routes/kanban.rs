@@ -4,7 +4,7 @@ use axum::extract::{Multipart, Path as AxumPath, Query, RawForm, State};
 use axum::http::{HeaderMap, StatusCode};
 use axum::response::{IntoResponse, Json, Redirect, Response};
 use axum::Form;
-use chrono::{Datelike, Duration, NaiveDate, NaiveDateTime, Utc, Weekday};
+use chrono::{Datelike, Duration, NaiveDate, NaiveDateTime, Utc};
 use serde::{Deserialize, Serialize};
 use sqlx::Row;
 use tera::Context;

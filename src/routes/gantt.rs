@@ -10,7 +10,7 @@ use serde::{Deserialize, Serialize};
 use sqlx::Row;
 use tera::Context;
 
-use crate::auth::{redirect_with_session, render_page, SessionContext};
+use crate::auth::{render_page, SessionContext};
 use crate::models::{normalize_uuid, Entity};
 use crate::state::AppState;
 

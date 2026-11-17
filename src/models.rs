@@ -1,4 +1,4 @@
-use chrono::{DateTime, NaiveDate, NaiveDateTime, Utc};
+use chrono::NaiveDateTime;
 use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Debug, Serialize, Deserialize, sqlx::FromRow)]
@@ -163,10 +163,5 @@ pub fn normalize_uuid(raw: &str) -> String {
 
 pub fn new_uuid_hex() -> String {
     uuid::Uuid::new_v4().simple().to_string()
-}
-
-pub fn today_utc_date() -> NaiveDate {
-    let now: DateTime<Utc> = Utc::now();
-    now.date_naive()
 }
 
