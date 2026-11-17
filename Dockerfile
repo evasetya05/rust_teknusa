@@ -32,8 +32,8 @@ COPY migrations ./migrations
 RUN mkdir -p /app/media /app/static /app/private
 
 ENV HOST=0.0.0.0
-ENV PORT=8000
-EXPOSE 8000
+ENV PORT=8003
+EXPOSE 8003
 
 CMD ["erp_rust"]
 

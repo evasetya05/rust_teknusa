@@ -47,7 +47,7 @@ impl AppConfig {
         let port = env::var("PORT")
             .ok()
             .and_then(|v| v.parse::<u16>().ok())
-            .unwrap_or(8000);
+            .unwrap_or(8003);
 
         let agent_llm_mode =
             env::var("AGENT_LLM_MODE").unwrap_or_else(|_| "gemini".to_string());

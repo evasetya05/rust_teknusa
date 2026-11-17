@@ -23,7 +23,7 @@ docker compose up -d db
 cargo run --release
 ```
 
-Server berjalan di `http://0.0.0.0:8000` (atau port sesuai `PORT`). Jika tabel `auth_user` masih kosong, user admin default (`admin` / `admin123`) dibuat otomatis saat startup.
+Server berjalan di `http://0.0.0.0:8003` (atau port sesuai `PORT`). Jika tabel `auth_user` masih kosong, user admin default (`admin` / `admin123`) dibuat otomatis saat startup.
 
 ## Menjalankan PostgreSQL dengan Docker Compose
 
