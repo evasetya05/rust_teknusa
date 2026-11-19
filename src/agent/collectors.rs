@@ -487,7 +487,7 @@ pub async fn collect_leads(
 
     let open_rows = crate::db::pg_query(
         "SELECT l.id, l.name, l.company, l.status, l.priority, l.estimated_value, l.next_follow_up,
-                l.created_at, u.username, u.first_name, u.last_name,
+                l.follow_up_completed, l.created_at, u.username, u.first_name, u.last_name,
                 (SELECT MAX(i.created_at) FROM leads_interaction i WHERE i.lead_id = l.id) AS last_int
          FROM leads_lead l
          LEFT JOIN auth_user u ON u.id = l.assigned_to_id
@@ -519,6 +519,7 @@ pub async fn collect_leads(
         let est_f = est.and_then(|d| d.to_f64()).unwrap_or(0.0);
         pipeline_value += est_f;
         let next_fu: Option<NaiveDate> = r.get("next_follow_up");
+        let fu_completed: bool = r.try_get("follow_up_completed").unwrap_or(false);
         let created_at: NaiveDateTime = r.get("created_at");
         let last_int: Option<NaiveDateTime> = r.get("last_int");
 
@@ -541,10 +542,14 @@ pub async fn collect_leads(
             stalled_hot += 1;
         }
 
-        let days_overdue = next_fu
-            .filter(|&d| d < today)
-            .map(|d| (today - d).num_days())
-            .unwrap_or(0);
+        let days_overdue = if fu_completed {
+            0
+        } else {
+            next_fu
+                .filter(|&d| d < today)
+                .map(|d| (today - d).num_days())
+                .unwrap_or(0)
+        };
 
         let row = LeadRow {
             id: lid,
@@ -571,13 +576,15 @@ pub async fn collect_leads(
         if assigned_to.is_none() {
             unassigned_list.push((row.clone(), created_at));
         }
-        if let Some(dd) = next_fu {
-            if dd < today {
-                overdue_list.push((row.clone(), dd));
-            } else if dd == today {
-                due_today_list.push((row.clone(), Some(dd)));
-            } else if dd <= soon_limit {
-                due_soon_list.push((row.clone(), Some(dd)));
+        if !fu_completed {
+            if let Some(dd) = next_fu {
+                if dd < today {
+                    overdue_list.push((row.clone(), dd));
+                } else if dd == today {
+                    due_today_list.push((row.clone(), Some(dd)));
+                } else if dd <= soon_limit {
+                    due_soon_list.push((row.clone(), Some(dd)));
+                }
             }
         }
         if priority == "hot" {

@@ -81,6 +81,15 @@
         <div class="col-md-4">
           <label class="form-label small fw-bold">Jadwal Follow-Up Berikutnya</label>
           <input type="date" name="next_follow_up" class="form-control" value="{% if lead %}{{ lead.next_follow_up }}{% endif %}">
+          {% if is_edit and lead %}
+          <div class="form-check mt-2">
+            <input class="form-check-input" type="checkbox" name="follow_up_completed" value="1" id="editFollowupCompleted"
+                   {% if lead.follow_up_completed %}checked{% endif %}>
+            <label class="form-check-label small" for="editFollowupCompleted">
+              Follow-Up Completed
+            </label>
+          </div>
+          {% endif %}
         </div>
       </div>
 

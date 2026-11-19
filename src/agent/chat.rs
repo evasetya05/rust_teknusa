@@ -199,7 +199,9 @@ pub async fn answer_question(
 mod tests {
     use super::*;
     use crate::agent::llm::is_valid_output;
-    use crate::agent::rules::{finance_alerts, overall_status, Alert, CRITICAL, INFO, WARNING};
+    use crate::agent::rules::{
+        finance_alerts, overall_status, Alert, FinanceMetrics, CRITICAL, INFO, WARNING,
+    };
 
     #[test]
     fn test_hallucination_guard_numbers() {

@@ -78,6 +78,9 @@ pub struct LeadView {
     pub estimated_value: String,
     pub estimated_value_num: f64,
     pub next_follow_up: String,
+    pub follow_up_completed: bool,
+    pub follow_up_completed_at: String,
+    pub is_follow_up_overdue: bool,
     pub status: String,
     pub status_label: String,
     pub created_at: String,
@@ -105,6 +108,10 @@ pub struct LeadDetailPost {
     pub status: String,
     #[serde(default)]
     pub note: String,
+    #[serde(default)]
+    pub next_follow_up: String,
+    #[serde(default)]
+    pub follow_up_completed: Option<String>,
 }
 
 fn choice_options(items: &[(&str, &str)]) -> Vec<OptionItem> {
@@ -172,7 +179,8 @@ async fn query_leads(
         "SELECT l.id, l.entity_id, e.name AS entity_name, l.name, l.email, l.phone, l.company,
                 l.account_medsos, l.lead_source, l.assigned_to_id,
                 u.username AS assigned_username, u.first_name AS assigned_first, u.last_name AS assigned_last,
-                l.priority, l.estimated_value, l.next_follow_up, l.status, l.created_at,
+                l.priority, l.estimated_value, l.next_follow_up, l.follow_up_completed, l.follow_up_completed_at,
+                l.status, l.created_at,
                 (SELECT COUNT(*) FROM leads_interaction i WHERE i.lead_id = l.id) AS interaction_count,
                 (SELECT MAX(i.created_at) FROM leads_interaction i WHERE i.lead_id = l.id) AS last_interaction
          FROM leads_lead l
@@ -222,10 +230,18 @@ fn row_to_lead_view(r: sqlx::postgres::PgRow) -> LeadView {
     let priority: String = r.get("priority");
     let est: Option<Decimal> = r.get("estimated_value");
     let next_fu: Option<NaiveDate> = r.get("next_follow_up");
+    let follow_up_completed: bool = r.try_get("follow_up_completed").unwrap_or(false);
+    let follow_up_completed_at: Option<NaiveDateTime> =
+        r.try_get("follow_up_completed_at").unwrap_or(None);
     let status: String = r.get("status");
     let created_at: NaiveDateTime = r.get("created_at");
     let interaction_count: i64 = r.try_get("interaction_count").unwrap_or(0);
     let last_interaction: Option<NaiveDateTime> = r.try_get("last_interaction").unwrap_or(None);
+
+    let today = Utc::now().date_naive();
+    let is_follow_up_overdue = next_fu
+        .map(|d| !follow_up_completed && d < today && status != "won" && status != "lost")
+        .unwrap_or(false);
 
     let full_assigned = format!(
         "{} {}",
@@ -270,6 +286,11 @@ fn row_to_lead_view(r: sqlx::postgres::PgRow) -> LeadView {
         estimated_value: est_str,
         estimated_value_num: est_num,
         next_follow_up: next_fu.map(|d| d.format("%Y-%m-%d").to_string()).unwrap_or_default(),
+        follow_up_completed,
+        follow_up_completed_at: follow_up_completed_at
+            .map(|dt| dt.format("%d %b %Y %H:%M").to_string())
+            .unwrap_or_default(),
+        is_follow_up_overdue,
         status_label: status_label(&status).to_string(),
         status,
         created_at: created_at.format("%d %b %Y %H:%M").to_string(),
@@ -335,13 +356,66 @@ pub async fn lead_detail_post(
         return Redirect::to("/leads/").into_response();
     };
 
-    if !form.status.trim().is_empty() && form.status.trim() != lead.status {
-        let _ = crate::db::pg_query("UPDATE leads_lead SET status = ? WHERE id = ?")
-            .bind(form.status.trim())
-            .bind(pk)
-            .execute(&state.db)
-            .await;
+    let new_status = if !form.status.trim().is_empty() {
+        form.status.trim().to_string()
+    } else {
+        lead.status.clone()
+    };
+
+    let next_fu_str = form.next_follow_up.trim();
+    let parsed_next_fu: Option<NaiveDate> = if next_fu_str.is_empty() {
+        NaiveDate::parse_from_str(&lead.next_follow_up, "%Y-%m-%d").ok()
+    } else {
+        NaiveDate::parse_from_str(next_fu_str, "%Y-%m-%d").ok()
+    };
+
+    let date_changed = !next_fu_str.is_empty() && next_fu_str != lead.next_follow_up;
+    let checkbox_checked = form
+        .follow_up_completed
+        .as_deref()
+        .map(|v| v == "1" || v == "on" || v == "true")
+        .unwrap_or(false);
+
+    // If the user schedules a new follow-up date and didn't explicitly check completed, reset completed to false.
+    // If status becomes won/lost, or checkbox is checked, mark completed.
+    let completed = if date_changed && !checkbox_checked {
+        false
+    } else if new_status == "won" || new_status == "lost" {
+        true
+    } else {
+        checkbox_checked
+    };
+
+    if completed {
+        let _ = crate::db::pg_query(
+            "UPDATE leads_lead
+             SET status = ?,
+                 next_follow_up = ?,
+                 follow_up_completed = 1,
+                 follow_up_completed_at = COALESCE(follow_up_completed_at, CURRENT_TIMESTAMP)
+             WHERE id = ?",
+        )
+        .bind(&new_status)
+        .bind(parsed_next_fu)
+        .bind(pk)
+        .execute(&state.db)
+        .await;
+    } else {
+        let _ = crate::db::pg_query(
+            "UPDATE leads_lead
+             SET status = ?,
+                 next_follow_up = ?,
+                 follow_up_completed = 0,
+                 follow_up_completed_at = NULL
+             WHERE id = ?",
+        )
+        .bind(&new_status)
+        .bind(parsed_next_fu)
+        .bind(pk)
+        .execute(&state.db)
+        .await;
     }
+
     if !form.note.trim().is_empty() {
         let _ = crate::db::pg_query(
             "INSERT INTO leads_interaction (lead_id, note, created_at) VALUES (?, ?, CURRENT_TIMESTAMP)",
@@ -353,6 +427,46 @@ pub async fn lead_detail_post(
     }
 
     session.push_flash("success", "Perubahan lead berhasil disimpan!");
+    redirect_with_session(&state, &session.payload, &format!("/leads/lead/{}/", pk))
+}
+
+pub async fn lead_follow_up_toggle_post(
+    State(state): State<AppState>,
+    mut session: SessionContext,
+    AxumPath(pk): AxumPath<i64>,
+) -> Response {
+    if let Err(resp) = session.require_auth_redirect() {
+        return resp;
+    }
+    let Some(lead) = fetch_one_lead(&state, pk).await else {
+        return Redirect::to("/leads/").into_response();
+    };
+
+    let new_done = !lead.follow_up_completed;
+    if new_done {
+        let _ = crate::db::pg_query(
+            "UPDATE leads_lead
+             SET follow_up_completed = 1,
+                 follow_up_completed_at = CURRENT_TIMESTAMP
+             WHERE id = ?",
+        )
+        .bind(pk)
+        .execute(&state.db)
+        .await;
+        session.push_flash("success", "Follow-up ditandai selesai (Completed)!");
+    } else {
+        let _ = crate::db::pg_query(
+            "UPDATE leads_lead
+             SET follow_up_completed = 0,
+                 follow_up_completed_at = NULL
+             WHERE id = ?",
+        )
+        .bind(pk)
+        .execute(&state.db)
+        .await;
+        session.push_flash("info", "Status follow-up dikembalikan ke belum selesai ( aktif di kalender ).");
+    }
+
     redirect_with_session(&state, &session.payload, &format!("/leads/lead/{}/", pk))
 }
 
@@ -494,33 +608,78 @@ pub async fn lead_edit_post(
     };
     let assigned_to_id: Option<i32> = first_val(&form, "assigned_to").parse().ok();
     let est_val: Option<Decimal> = first_val(&form, "estimated_value").parse().ok();
+    let next_fu_str = first_val(&form, "next_follow_up");
     let next_fu: Option<NaiveDate> =
-        NaiveDate::parse_from_str(&first_val(&form, "next_follow_up"), "%Y-%m-%d").ok();
+        NaiveDate::parse_from_str(&next_fu_str, "%Y-%m-%d").ok();
     let priority = non_empty_or(&first_val(&form, "priority"), "warm");
     let status = non_empty_or(&first_val(&form, "status"), "new");
     let lead_source = opt_str(&first_val(&form, "lead_source"));
 
-    let _ = crate::db::pg_query(
-        "UPDATE leads_lead
-         SET entity_id = ?, name = ?, email = ?, phone = ?, company = ?, account_medsos = ?,
-             lead_source = ?, assigned_to_id = ?, priority = ?, estimated_value = ?, next_follow_up = ?, status = ?
-         WHERE id = ?",
-    )
-    .bind(entity_id)
-    .bind(&name)
-    .bind(opt_str(&first_val(&form, "email")))
-    .bind(opt_str(&first_val(&form, "phone")))
-    .bind(opt_str(&first_val(&form, "company")))
-    .bind(opt_str(&first_val(&form, "account_medsos")))
-    .bind(lead_source)
-    .bind(assigned_to_id)
-    .bind(priority)
-    .bind(est_val)
-    .bind(next_fu)
-    .bind(status)
-    .bind(pk)
-    .execute(&state.db)
-    .await;
+    let existing = fetch_one_lead(&state, pk).await;
+    let date_changed = existing
+        .as_ref()
+        .map(|l| !next_fu_str.is_empty() && next_fu_str != l.next_follow_up)
+        .unwrap_or(false);
+    let fu_completed_val = first_val(&form, "follow_up_completed");
+    let checkbox_checked =
+        fu_completed_val == "1" || fu_completed_val == "on" || fu_completed_val == "true";
+    let completed = if date_changed && !checkbox_checked {
+        false
+    } else if status == "won" || status == "lost" {
+        true
+    } else {
+        checkbox_checked
+    };
+
+    if completed {
+        let _ = crate::db::pg_query(
+            "UPDATE leads_lead
+             SET entity_id = ?, name = ?, email = ?, phone = ?, company = ?, account_medsos = ?,
+                 lead_source = ?, assigned_to_id = ?, priority = ?, estimated_value = ?, next_follow_up = ?,
+                 follow_up_completed = 1, follow_up_completed_at = COALESCE(follow_up_completed_at, CURRENT_TIMESTAMP),
+                 status = ?
+             WHERE id = ?",
+        )
+        .bind(entity_id)
+        .bind(&name)
+        .bind(opt_str(&first_val(&form, "email")))
+        .bind(opt_str(&first_val(&form, "phone")))
+        .bind(opt_str(&first_val(&form, "company")))
+        .bind(opt_str(&first_val(&form, "account_medsos")))
+        .bind(lead_source)
+        .bind(assigned_to_id)
+        .bind(priority)
+        .bind(est_val)
+        .bind(next_fu)
+        .bind(status)
+        .bind(pk)
+        .execute(&state.db)
+        .await;
+    } else {
+        let _ = crate::db::pg_query(
+            "UPDATE leads_lead
+             SET entity_id = ?, name = ?, email = ?, phone = ?, company = ?, account_medsos = ?,
+                 lead_source = ?, assigned_to_id = ?, priority = ?, estimated_value = ?, next_follow_up = ?,
+                 follow_up_completed = 0, follow_up_completed_at = NULL,
+                 status = ?
+             WHERE id = ?",
+        )
+        .bind(entity_id)
+        .bind(&name)
+        .bind(opt_str(&first_val(&form, "email")))
+        .bind(opt_str(&first_val(&form, "phone")))
+        .bind(opt_str(&first_val(&form, "company")))
+        .bind(opt_str(&first_val(&form, "account_medsos")))
+        .bind(lead_source)
+        .bind(assigned_to_id)
+        .bind(priority)
+        .bind(est_val)
+        .bind(next_fu)
+        .bind(status)
+        .bind(pk)
+        .execute(&state.db)
+        .await;
+    }
 
     if let Some(notes) = form.get("interaction_note[]") {
         for n in notes {
@@ -685,7 +844,9 @@ pub async fn lead_calendar_events(
     }
     let eid = session.entity_filter_id();
     let mut sql = String::from(
-        "SELECT id, name, next_follow_up, status FROM leads_lead WHERE next_follow_up IS NOT NULL",
+        "SELECT id, name, next_follow_up, follow_up_completed, status
+         FROM leads_lead
+         WHERE next_follow_up IS NOT NULL AND follow_up_completed = 0",
     );
     if eid.is_some() {
         sql.push_str(" AND entity_id = ?");
@@ -694,6 +855,7 @@ pub async fn lead_calendar_events(
     if let Some(ref e) = eid {
         q = q.bind(e);
     }
+    let today = Utc::now().date_naive();
     let events: Vec<serde_json::Value> = q
         .fetch_all(&state.db)
         .await
@@ -704,10 +866,33 @@ pub async fn lead_calendar_events(
             let name: String = r.get("name");
             let dt: NaiveDate = r.get("next_follow_up");
             let status: String = r.get("status");
-            let color = if status == "won" { "#10b981" } else { "#2563eb" };
+            let is_overdue = dt < today && status != "won" && status != "lost";
+            let is_today = dt == today && status != "won" && status != "lost";
+
+            // Rollover overdue uncompleted follow-up to today so it remains visible on today's calendar
+            let display_date = if is_overdue { today } else { dt };
+            let title = if is_overdue {
+                format!(
+                    "[Overdue {}] Follow-up: {}",
+                    dt.format("%d %b"),
+                    name
+                )
+            } else {
+                format!("Follow-up: {}", name)
+            };
+
+            let color = if status == "won" {
+                "#10b981"
+            } else if is_overdue {
+                "#dc2626"
+            } else if is_today {
+                "#d97706"
+            } else {
+                "#2563eb"
+            };
             serde_json::json!({
-                "title": format!("Follow-up: {}", name),
-                "start": dt.format("%Y-%m-%d").to_string(),
+                "title": title,
+                "start": display_date.format("%Y-%m-%d").to_string(),
                 "url": format!("/leads/lead/{}/", id),
                 "allDay": true,
                 "backgroundColor": color,
@@ -725,7 +910,8 @@ async fn fetch_one_lead(state: &AppState, pk: i64) -> Option<LeadView> {
         "SELECT l.id, l.entity_id, e.name AS entity_name, l.name, l.email, l.phone, l.company,
                 l.account_medsos, l.lead_source, l.assigned_to_id,
                 u.username AS assigned_username, u.first_name AS assigned_first, u.last_name AS assigned_last,
-                l.priority, l.estimated_value, l.next_follow_up, l.status, l.created_at,
+                l.priority, l.estimated_value, l.next_follow_up, l.follow_up_completed, l.follow_up_completed_at,
+                l.status, l.created_at,
                 (SELECT COUNT(*) FROM leads_interaction i WHERE i.lead_id = l.id) AS interaction_count,
                 (SELECT MAX(i.created_at) FROM leads_interaction i WHERE i.lead_id = l.id) AS last_interaction
          FROM leads_lead l
@@ -796,7 +982,7 @@ fn compute_lead_stats(leads: &[LeadView]) -> LeadStats {
         *status_map.entry(l.status.clone()).or_insert(0) += 1;
         *source_map.entry(l.lead_source.clone()).or_insert(0) += 1;
 
-        if open_statuses.contains(&l.status.as_str()) {
+        if open_statuses.contains(&l.status.as_str()) && !l.follow_up_completed {
             if let Ok(d) = NaiveDate::parse_from_str(&l.next_follow_up, "%Y-%m-%d") {
                 if d >= today {
                     pending_followups += 1;

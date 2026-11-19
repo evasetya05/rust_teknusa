@@ -23,6 +23,7 @@ fn postgres_sql(sql: &str) -> &'static str {
         "is_posted",
         "is_closed",
         "is_completed",
+        "follow_up_completed",
         "is_done",
         "completed",
         "public",

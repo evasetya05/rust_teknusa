@@ -26,14 +26,47 @@
           <dt class="col-5 text-muted">Telepon</dt><dd class="col-7">{{ lead.phone | default(value="-") }}</dd>
           <dt class="col-5 text-muted">Medsos</dt><dd class="col-7">{{ lead.account_medsos | default(value="-") }}</dd>
           <dt class="col-5 text-muted">Estimasi Nilai</dt><dd class="col-7">{% if lead.estimated_value_num > 0 %}Rp {{ lead.estimated_value_num | intcomma }}{% else %}-{% endif %}</dd>
-          <dt class="col-5 text-muted">Follow-Up</dt><dd class="col-7">{{ lead.next_follow_up | default(value="-") }}</dd>
+          <dt class="col-5 text-muted">Follow-Up</dt>
+          <dd class="col-7">
+            {% if lead.next_follow_up %}
+              <div class="d-flex flex-wrap align-items-center gap-2">
+                <span class="{% if lead.follow_up_completed %}text-decoration-line-through text-muted{% elif lead.is_follow_up_overdue %}text-danger fw-bold{% endif %}">
+                  {{ lead.next_follow_up }}
+                </span>
+                {% if lead.follow_up_completed %}
+                  <span class="badge bg-success"><i class="fas fa-check-circle me-1"></i>Completed</span>
+                {% elif lead.is_follow_up_overdue %}
+                  <span class="badge bg-danger"><i class="fas fa-exclamation-circle me-1"></i>Overdue</span>
+                {% else %}
+                  <span class="badge bg-warning text-dark"><i class="far fa-clock me-1"></i>Pending</span>
+                {% endif %}
+              </div>
+              <form method="post" action="/leads/lead/{{ lead.id }}/follow-up/toggle/" class="mt-2">
+                <div class="form-check">
+                  <input class="form-check-input" type="checkbox" id="quickFollowupToggle"
+                         {% if lead.follow_up_completed %}checked{% endif %}
+                         onchange="this.form.submit()">
+                  <label class="form-check-label small" for="quickFollowupToggle">
+                    Checklist Follow-Up Completed
+                  </label>
+                </div>
+                {% if lead.follow_up_completed and lead.follow_up_completed_at %}
+                <div class="text-muted" style="font-size: 0.72rem;">Selesai pada {{ lead.follow_up_completed_at }}</div>
+                {% elif not lead.follow_up_completed %}
+                <div class="text-muted" style="font-size: 0.72rem;">Jika tidak di-checklist, follow-up akan terus tampil di kalender.</div>
+                {% endif %}
+              </form>
+            {% else %}
+              -
+            {% endif %}
+          </dd>
           <dt class="col-5 text-muted">Assigned To</dt><dd class="col-7">{{ lead.assigned_to_name | default(value="-") }}</dd>
         </dl>
       </div>
     </div>
 
     <div class="card border-0 shadow-sm">
-      <div class="card-header bg-white fw-bold">Update Status &amp; Tambah Interaksi</div>
+      <div class="card-header bg-white fw-bold">Update Status, Follow-Up &amp; Tambah Interaksi</div>
       <div class="card-body">
         <form method="post">
           <div class="mb-3">
@@ -43,6 +76,17 @@
               <option value="{{ opt.value }}" {% if lead.status == opt.value %}selected{% endif %}>{{ opt.label }}</option>
               {% endfor %}
             </select>
+          </div>
+          <div class="mb-3">
+            <label class="form-label small fw-bold">Jadwal Follow-Up</label>
+            <input type="date" name="next_follow_up" class="form-control form-control-sm" value="{{ lead.next_follow_up }}">
+            <div class="form-check mt-2">
+              <input class="form-check-input" type="checkbox" name="follow_up_completed" value="1" id="formFollowupCompleted"
+                     {% if lead.follow_up_completed %}checked{% endif %}>
+              <label class="form-check-label small" for="formFollowupCompleted">
+                Follow-Up Completed (Sembunyikan dari tagihan kalender)
+              </label>
+            </div>
           </div>
           <div class="mb-3">
             <label class="form-label small fw-bold">Catatan Interaksi Baru</label>

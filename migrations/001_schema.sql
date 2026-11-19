@@ -42,11 +42,16 @@ CREATE TABLE IF NOT EXISTS leads_lead (
     priority varchar(10) NOT NULL DEFAULT 'warm',
     estimated_value decimal(12,2) DEFAULT NULL,
     next_follow_up date DEFAULT NULL,
+    follow_up_completed BOOLEAN NOT NULL DEFAULT FALSE,
+    follow_up_completed_at TIMESTAMP(6) DEFAULT NULL,
     status varchar(20) NOT NULL DEFAULT 'new',
     created_at TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
     CONSTRAINT leads_lead_entity_fk FOREIGN KEY (entity_id) REFERENCES entity_entity (id) ON DELETE SET NULL,
     CONSTRAINT leads_lead_user_fk FOREIGN KEY (assigned_to_id) REFERENCES auth_user (id) ON DELETE SET NULL
 );
+
+ALTER TABLE leads_lead ADD COLUMN IF NOT EXISTS follow_up_completed BOOLEAN NOT NULL DEFAULT FALSE;
+ALTER TABLE leads_lead ADD COLUMN IF NOT EXISTS follow_up_completed_at TIMESTAMP(6) DEFAULT NULL;
 
 CREATE TABLE IF NOT EXISTS leads_interaction (
     id BIGSERIAL PRIMARY KEY,

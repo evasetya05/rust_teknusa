@@ -42,6 +42,10 @@ pub fn build_router() -> Router<AppState> {
         // Leads
         .route("/leads/", get(leads::lead_list))
         .route("/leads/lead/:pk/", get(leads::lead_detail_get).post(leads::lead_detail_post))
+        .route(
+            "/leads/lead/:pk/follow-up/toggle/",
+            post(leads::lead_follow_up_toggle_post),
+        )
         .route("/leads/create/", get(leads::lead_create_get).post(leads::lead_create_post))
         .route(
             "/leads/lead/:pk/edit/",
